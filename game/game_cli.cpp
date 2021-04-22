@@ -13,6 +13,8 @@ namespace {
 
 	static std::string WhiteAlgoFieldName = "WhiteAlgo";
 	static std::string BlackAlgoFieldName = "BlackAlgo";
+	static std::string TerminalColorsFieldName = "TerminalColors";
+	static std::string UnicodeFieldName = "Unicode";
 
 	inline std::string getColorName(space::Color color)
 	{
@@ -27,39 +29,6 @@ namespace {
 		}
 	}
 
-	inline char pieceTypeToChar(space::PieceType pieceType)
-	{
-		switch (pieceType)
-		{
-		case space::PieceType::Pawn:
-			return 'p';
-		case space::PieceType::EnPassantCapturablePawn:
-			return 'p';
-		case space::PieceType::Rook:
-			return 'r';
-		case space::PieceType::Knight:
-			return 'n';
-		case space::PieceType::Bishop:
-			return 'b';
-		case space::PieceType::Queen:
-			return 'q';
-		case space::PieceType::King:
-			return 'k';
-		case space::PieceType::None:
-			throw std::runtime_error("Cannot convert piece type 'None' to text");
-		default:
-			throw std::runtime_error("pieceType " + std::to_string(static_cast<int>(pieceType)) + " not recognized.");
-		}
-	}
-
-	inline char pieceToChar(space::Piece piece) {
-
-		char result = pieceTypeToChar(piece.pieceType);
-		if (piece.color == space::Color::White)
-			result = result + 'A' - 'a';
-		return result;
-	}
-
 	inline space::Color getOppositeColor(space::Color color) {
 		switch (color)
 		{
@@ -70,30 +39,6 @@ namespace {
 		default:
 			throw std::runtime_error("Unrecognized color value " + std::to_string(static_cast<int>(color)));
 		}
-	}
-
-	void printBoard(std::ostream& out, const space::IBoard& board)
-	{
-
-		out << "  |  a  b  c  d  e  f  g  h  |\n"
-			<< "--+--------------------------+--\n";
-		for (int rank = 7; rank >= 0; --rank)
-		{
-			out << (rank + 1) << " |  ";
-			for (int file = 0; file < 8; ++file)
-			{
-				auto piece = board.getPiece({ rank, file });
-				if (piece.has_value())
-					out << pieceToChar(piece.value()) << "  ";
-				else
-					out << ".  ";
-			}
-			out << "| " << (rank + 1) << "\n";
-			if (rank > 0)
-				out << "  |                          |  \n";
-		}
-		out << "--+--------------------------+--\n"
-			<< "  |  a  b  c  d  e  f  g  h  |\n\n";
 	}
 
 	nlohmann::json parseConfig(int argc, char const* const* const argv)
@@ -121,6 +66,14 @@ namespace {
 					throw std::runtime_error("invalid command line arguments: expected filename after '--whiteAlgo'");
 				result[WhiteAlgoFieldName] = argv[iarg];
 			}
+			else if (arg == "--color")
+			{
+				result[TerminalColorsFieldName] = true;
+			}
+			else if (arg == "--unicode")
+			{
+				result[UnicodeFieldName] = true;
+			}
 			else if (arg == "--help" || arg == "-h")
 			{
 				std::cout << "Space chess command line game engine.\n\t"
@@ -132,6 +85,11 @@ namespace {
 		}
 		return result;
 	}
+
+	struct Config {
+		bool terminal_colors;
+		bool unicode;
+	};
 }
 
 int main(int argc, char const * const * const argv) {
@@ -146,11 +104,13 @@ int main(int argc, char const * const * const argv) {
 		config.contains(BlackAlgoFieldName)
 		? space::AlgoFactory::tryCreateAlgo(config[BlackAlgoFieldName]).value()
 		: space::CliAlgo::create(std::cin, std::cout);
+	auto terminal_colors = config.contains(TerminalColorsFieldName);
+	auto unicode = config.contains(UnicodeFieldName);
 
 	bool recursiveError = false;
 	while (true)
 	{
-		printBoard(std::cout, *board);
+		std::cout << board->as_string(terminal_colors, unicode, space::Color::White);
 		auto algo = board->whoPlaysNext() == space::Color::White ? whiteAlgo : blackAlgo;
 
 		try {

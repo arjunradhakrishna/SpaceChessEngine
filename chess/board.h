@@ -37,7 +37,7 @@ namespace space {
 		using MoveMap = std::map<Move, Ptr>;
 		virtual Color whoPlaysNext() const = 0;
 		virtual std::optional<Piece> getPiece(Position position) const = 0;
-		
+
 		// (Left and right from that player's point of view)
 		virtual bool canCastleLeft(Color color) const = 0;
 		virtual bool canCastleRight(Color color) const = 0;
@@ -50,6 +50,11 @@ namespace space {
 		) const = 0;
 		virtual std::optional<Ptr> updateBoard(Move move) const = 0;
 		virtual MoveMap getValidMoves() const = 0;
+		virtual std::string as_string(
+				bool unicode_pieces = false,
+				bool terminal_colors = false,
+				Color perspective = Color::White
+		) const = 0;
 	};
 
 }

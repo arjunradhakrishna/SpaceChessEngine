@@ -27,6 +27,11 @@ namespace space {
 
 		static Ptr getStartingBoard();
 		static Ptr fromFen(const Fen& fen);
+		std::string as_string(
+		        bool unicode_pieces = false, 
+		        bool terminal_colors = false, 
+		        Color perspective = Color::White
+		) const override;
 
 	private:
 		std::array<std::array<Piece, 8>, 8> m_pieces;
