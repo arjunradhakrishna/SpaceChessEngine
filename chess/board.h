@@ -6,11 +6,16 @@
 #include <map>
 
 namespace space {
-	enum class Color { White, Black };
+	// Very tempted to make this a non class enum to
+	// ease array indexing.
+	enum class Color { White = 0, Black = 1 };
+	inline static Color oppositeColor(Color c) { return (Color)(1 - (int)c); }
+
 	enum class PieceType { Pawn, EnPassantCapturablePawn, Rook, Knight, Bishop, Queen, King, None };
 	struct Position {
 		int rank;
 		int file;
+		Position() : rank(0), file(0) {}
 		Position(int v_rank, int v_file) : rank(v_rank), file(v_file) {}
 		Position(std::string san) : Position(san[1] - '1', san[0] - 'a') { }
 	};
@@ -50,11 +55,11 @@ namespace space {
 		) const = 0;
 		virtual std::optional<Ptr> updateBoard(Move move) const = 0;
 		virtual MoveMap getValidMoves() const = 0;
-		virtual std::string as_string(
+		std::string as_string(
 				bool unicode_pieces = false,
 				bool terminal_colors = false,
 				Color perspective = Color::White
-		) const = 0;
+		) const;
 	};
 
 }

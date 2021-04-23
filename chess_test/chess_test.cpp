@@ -3,6 +3,7 @@
 #include <chess/board_impl.h>
 #include <chess/fen.h>
 #include <chess/pgn.h>
+#include <chess/counting_board.h>
 #include <algo_linear/algoLinear.h>
 #include <fstream>
 #include <filesystem>
@@ -244,6 +245,7 @@ TEST(AlgoSuite, AlgoLinearTest) {
 
 }
 
+/*
 TEST(BoardSuite, PGNParseTest) {
 	using namespace space;
 
@@ -262,7 +264,6 @@ TEST(BoardSuite, PGNParseTest) {
 TEST(BoardSuite, PGNParseFromPositionTest) {
 	using namespace space;
 
-	std::cout << std::filesystem::current_path() << std::endl;
 	auto f = std::fstream(
 		"games/from_position.pgn",
 		std::ios_base::in
@@ -270,4 +271,14 @@ TEST(BoardSuite, PGNParseFromPositionTest) {
 	auto game = PGN::parse(f);
 	f.close();
 	test_utils::validate_game_moves(*game);
+}
+*/
+
+TEST(CBoardSuite, Initialization) {
+	using namespace space;
+
+	auto board = CBoard::startPosition();
+	std::cout << board->as_string(true, true) << std::endl;
+	std::cout << "..." << std::endl;
+	std::cout << board->attackString() << std::endl;
 }
