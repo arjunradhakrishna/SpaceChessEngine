@@ -5,6 +5,19 @@
 namespace {
 	using namespace space;
 
+	char as_char(PieceType pieceType) {
+		switch (pieceType) {
+			case PieceType::Rook  : return 'R';
+			case PieceType::Knight: return 'N';
+			case PieceType::Bishop: return 'B';
+			case PieceType::King  : return 'K';
+			case PieceType::Queen : return 'Q';
+			case PieceType::Pawn  : return 'P';
+			case PieceType::EnPassantCapturablePawn  : return 'P';
+			default               : return '-';
+		}
+	}
+
 	std::string piece_to_unicode(const space::Piece& piece) {
 		using namespace space;
 		if (piece.color == Color::White) {
@@ -144,7 +157,6 @@ namespace {
 }
 
 namespace space {
-
 	std::string IBoard::as_string(
 			bool terminal_colors,
 			bool unicode_pieces,

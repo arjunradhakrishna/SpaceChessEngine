@@ -1,17 +1,53 @@
 #include "counting_board.h"
 #include "squares.h"
+#include "direction.h"
 #include <sstream>
-#include <iostream>
+
+namespace {
+	space::PieceType toPieceType(char c) {
+		using namespace space;
+		// Pawn, EnPessantCapturablePawn, Rook, Knight, Bishop, Queen, King, None
+		switch (c)
+		{
+		case 'p':
+		case 'P':
+			return PieceType::Pawn;
+		case 'r':
+		case 'R':
+			return PieceType::Rook;
+		case 'n':
+		case 'N':
+			return PieceType::Knight;
+		case 'b':
+		case 'B':
+			return PieceType::Bishop;
+		case 'q':
+		case 'Q':
+			return PieceType::Queen;
+		case 'k':
+		case 'K':
+			return PieceType::King;
+		default:
+			throw std::runtime_error(std::string("Unrecognizable piece type '") + c + "'");
+		}
+	}
+}
 
 // Trivial CBoard functions
 namespace space {
 	inline std::optional<Piece> CBoard::getPiece(Position position) const {
-		return pieces[position.rank][position.file];
+		auto piece = pieces[position.rank][position.file];
+		if (piece.pieceType == PieceType::None) return {};
+		return piece;
 	}
 
 	inline bool CBoard::isUnderAttack(Position position, Color attackingColor) const {
 		return (attackedBy[(int)attackingColor][position.rank][position.file] != 0)
-			|| (attackedBy[(int)attackingColor][position.rank][position.file] != 0);
+			|| (attackedByKnight[(int)attackingColor][position.rank][position.file] != 0);
+	}
+
+	inline bool CBoard::isUnderAttackFromDirection(Position position, Color attackingColor, Direction direction) const {
+		return (attackedBy[(int)attackingColor][position.rank][position.file] & direction) != 0;
 	}
 
 	inline bool CBoard::isUnderCheck(Color color, std::optional<Position> targetKingPosition) const {
@@ -196,22 +232,213 @@ namespace space {
 
 	std::string CBoard::attackString() const {
 		std::stringstream ss;
-		ss << "White:\n";
-		for (int r = 7; r >= 0; r--) {
-			ss << "    ";
+		auto fileNames = "abcdefgh";
+
+		for (auto color : { Color::White, Color::Black }) {
+			ss << "Attacks from ";
+			ss << (color == Color::White ? "white" : "black");
+			ss << " (ortho and diagonal):" << std::endl;
+
+			ss << "    |";
 			for (int f = 0; f <= 7; f++) {
-				ss << isUnderAttack({r, f}, Color::White);
+				ss << " " << (char)(f + 'a') << " |";
 			}
 			ss << std::endl;
-		}
-		ss << "Black:\n";
-		for (int r = 7; r >= 0; r--) {
-			ss << "    ";
+
+			ss << "    |";
 			for (int f = 0; f <= 7; f++) {
-				ss << isUnderAttack({r, f}, Color::Black);
+				ss << "---|";
 			}
 			ss << std::endl;
+
+			for (int r = 7; r >= 0; r--) {
+				ss << (r+1) << "   |";
+				for (int f = 0; f <= 7; f++) {
+					ss << (isUnderAttackFromDirection({r,f}, color, Direction::NorthWest) ? "\u2196" : " ");
+					ss << (isUnderAttackFromDirection({r,f}, color, Direction::North) ? "\u2191" : " ");
+					ss << (isUnderAttackFromDirection({r,f}, color, Direction::NorthEast) ? "\u2197" : " ");
+					ss << "|";
+				}
+				ss << std::endl;
+
+				ss << (r+1) << "   |";
+				for (int f = 0; f <= 7; f++) {
+					ss << (isUnderAttackFromDirection({r,f}, color, Direction::West) ? "\u2190" : " ");
+					ss << " ";
+					ss << (isUnderAttackFromDirection({r,f}, color, Direction::East) ? "\u2192" : " ");
+					ss << "|";
+				}
+				ss << std::endl;
+
+				ss << (r+1) << "   |";
+				for (int f = 0; f <= 7; f++) {
+					ss << (isUnderAttackFromDirection({r,f}, color, Direction::SouthWest) ? "\u2199" : " ");
+					ss << (isUnderAttackFromDirection({r,f}, color, Direction::South) ? "\u2193" : " ");
+					ss << (isUnderAttackFromDirection({r,f}, color, Direction::SouthEast) ? "\u2198" : " ");
+					ss << "|";
+				}
+				ss << std::endl;
+
+				ss << (r+1) << "   |";
+				for (int f = 0; f <= 7; f++) {
+					ss << "---|";
+				}
+				ss << std::endl;
+			}
 		}
+		/*
+		for (auto color : { Color::White, Color::Black }) {
+			ss << "Attacks from ";
+			ss << (color == Color::White ? "white" : "black");
+			ss << " (ortho and diagonal):" << std::endl;
+			for (int r = 7; r >= 0; r--) {
+				ss << (r+1) << "   |";
+
+				for (auto d = 0; d < directions.size(); d++) {
+					for (int f = 0; f <= 7; f++) {
+						auto da = directions[d];
+						bool attacked = isUnderAttackFromDirection({r, f}, color, da.first);
+						ss << (attacked ? da.second : "\u00b7");
+					}
+					ss << "|  ";
+					if (d != directions.size() - 1) ss << (r+1) << "|";
+				}
+				ss << std::endl;
+			}
+			for (int i = 0; i < 8; i++) ss << "     " << fileNames;
+			ss << std::endl;
+		}
+		*/
+
 		return ss.str();
+	}
+
+	void CBoard::updateUnderAttack() {
+		for (auto r = 0; r <= 7; r++) {
+			for (auto f = 0; f <= 7; f++) {
+				updateUnderAttackFrom({r, f});
+			}
+		}
+	}
+
+	void CBoard::updateUnderAttackFrom(Position position) {
+		auto maybePiece = getPiece(position);
+		if (!maybePiece.has_value()) return;
+		auto piece = maybePiece.value();
+
+		auto r = position.rank;
+		auto f = position.file;
+
+		// Bishop, Rook, Queen
+		auto& directions =
+			(piece.pieceType == PieceType::Queen)  ? allDirections : (
+			(piece.pieceType == PieceType::Rook)   ? cardinalDirections : (
+			(piece.pieceType == PieceType::Bishop) ? diagonalDirections : (
+			noDirections)));
+		for (auto direction : directions) {
+			auto offset = directionToOffset(direction);
+			for (int cr = r + offset.first, cf = f + offset.second;
+			     cr >= 0 && cr <= 7 && cf >= 0 && cr <= 7;
+				 cr += offset.first, cf += offset.second
+			) {
+				attackedBy[(int)piece.color][cr][cf] |= oppositeDirection(direction);
+				if (pieces[cr][cf].pieceType != PieceType::None) break;
+			}
+		}
+
+		// Knight
+		if (piece.pieceType == PieceType::Knight) {
+			for (auto kdirection : knightDirections) {
+				auto offset = knightDirectionToOffset(kdirection);
+				auto cr = r + offset.first;
+				auto cf = f + offset.second;
+				if (cr < 0 || cr > 7 || cf < 0 || cf > 7) continue;
+				attackedByKnight[(int)piece.color][cr][cf] |= oppositeKnightDirection(kdirection);
+			}
+		}
+
+		// Kings
+		if (piece.pieceType == PieceType::King) {
+			for (auto direction : allDirections) {
+				auto offset = directionToOffset(direction);
+				auto cr = r + offset.first;
+				auto cf = f + offset.second;
+				if (cr < 0 || cr > 7 || cf < 0 || cf > 7) continue;
+				attackedBy[(int)piece.color][cr][cf] |= oppositeDirection(direction);
+			}
+		}
+
+		// Pawns
+		if (piece.pieceType == PieceType::Pawn || piece.pieceType == PieceType::EnPassantCapturablePawn) {
+			auto rdiff = piece.color == Color::White ? 1 : -1;
+			for (auto direction : diagonalDirections) {
+				auto offset = directionToOffset(direction);
+				if (offset.first != rdiff) continue;
+				auto cr = r + offset.first;
+				auto cf = f + offset.second;
+				if (cr < 0 || cr > 7 || cf < 0 || cf > 7) continue;
+				attackedBy[(int)piece.color][cr][cf] |= oppositeDirection(direction);
+			}
+		}
+	}
+
+	std::unique_ptr<CBoard> CBoard::fromFen(const Fen& fen) {
+		auto board = std::make_unique<CBoard>();
+
+		auto ss = std::stringstream(fen.fen);
+
+		std::string pieces; ss >> pieces;
+		auto rank = 7;
+		auto file = 0;
+		for (auto c : pieces) {
+			if (c == '/') {
+				rank -= 1;
+				file = 0;
+			}
+			else if (c >= '1' && c <= '8') {
+				int skips = c - '0';
+				for (int i = 0; i < skips; i++) {
+					board->pieces[rank][file + i] = { PieceType::None, Color::White };
+				}
+				file += skips;
+			}
+			else if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
+				auto color = (c >= 'a' && c <= 'z') ? Color::Black : Color::White;
+				auto pieceType = toPieceType(c);
+				board->pieces[rank][file] = { pieceType, color };
+				file += 1;
+				if (pieceType == PieceType::King) {
+					board->kingPosition[(int)color] = { rank, file };
+				}
+			}
+
+		}
+
+		char mover; ss >> mover;
+		board->nextMover = mover == 'w' ? Color::White : Color::Black;
+
+		std::string castling; ss >> castling;
+		for (auto c : castling) {
+			if (c == 'K') board->castlingRights[(int)Color::White][ShortCastle] = true;
+			if (c == 'Q') board->castlingRights[(int)Color::White][LongCastle] = true;
+			if (c == 'k') board->castlingRights[(int)Color::White][ShortCastle] = true;
+			if (c == 'q') board->castlingRights[(int)Color::White][LongCastle] = true;
+		}
+
+		std::string enpassant; ss >> enpassant;
+		if (enpassant != "-") {
+			auto enpassantFile = enpassant[0] - 'a';
+			auto enpassantRank = enpassant[1] - '1';
+
+			if (enpassantRank == 2) {
+				board->pieces[3][enpassantFile].pieceType = PieceType::EnPassantCapturablePawn;
+			}
+			else {
+				board->pieces[4][enpassantFile].pieceType = PieceType::EnPassantCapturablePawn;
+			}
+		}
+
+		board->updateUnderAttack();
+		return board;
 	}
 }

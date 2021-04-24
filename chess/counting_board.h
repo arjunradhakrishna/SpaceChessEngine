@@ -3,6 +3,8 @@
 #include <vector>
 #include <memory>
 #include "board.h"
+#include "direction.h"
+#include "fen.h"
 
 /*	
  * Here is the main idea behind the board. We maintain the usual structures:
@@ -32,43 +34,6 @@
  */
 
 namespace space {
-	enum Direction : unsigned char {
-		North         =   1,
-		South         =   2,
-		East          =   4,
-		West          =   8,
-		NorthEast     =  16,
-		NorthWest     =  32,
-		SouthEast     =  64,
-		SouthWest     = 128,
-	};
-
-	// Helper for iteration.
-	static const std::vector<Direction> directions {
-		Direction::North, Direction::South, Direction::East, Direction::West,
-		Direction::NorthEast, Direction::NorthWest,
-		Direction::SouthEast, Direction::SouthWest,
-	};
-
-	enum KnightDirection : unsigned char {
-		Clock01    =   1,
-		Clock02    =   2,
-		Clock04    =   4,
-		Clock05    =   8,
-		Clock07    =  16,
-		Clock08    =  32,
-		Clock10    =  64,
-		Clock11    = 128,
-	};
-
-	// Helper for iteration.
-	static const std::vector<KnightDirection> knightDirections {
-		KnightDirection::Clock01, KnightDirection::Clock02, 
-		KnightDirection::Clock04, KnightDirection::Clock05, 
-		KnightDirection::Clock07, KnightDirection::Clock08, 
-		KnightDirection::Clock10, KnightDirection::Clock11, 
-	};
-
 	class CBoard : public IBoard {
 	private: // All state
 		static constexpr auto ShortCastle = 0;
@@ -87,8 +52,8 @@ namespace space {
 		std::array<std::array<bool, 2>, 2> castlingRights;
 
 		// First index: white or black
-		std::array<std::array<std::array<unsigned char, 8>, 8>, 2> attackedBy;
-		std::array<std::array<std::array<unsigned char, 8>, 8>, 2> attackedByKnight;
+		std::array<std::array<std::array<unsigned char, 8>, 8>, 2> attackedBy { 0 };
+		std::array<std::array<std::array<unsigned char, 8>, 8>, 2> attackedByKnight { 0 };
 
 	public:
 		bool isStaleMate() const override {}
@@ -96,13 +61,17 @@ namespace space {
 		std::optional<Ptr> updateBoard(Move move) const override {}
 		MoveMap getValidMoves() const override {}
 
+		static std::unique_ptr<CBoard> fromFen(const Fen& fen);
 		static std::unique_ptr<CBoard> startPosition();
 		std::string attackString() const;
 
 	private:
 		std::unique_ptr<CBoard> clone() const;
 		inline bool isUnderAttack(Position position, Color attackingColor) const;
-		// Is capturable
+		inline bool isUnderAttackFromDirection(Position position, Color attackingColor, Direction direction) const;
+
+		void updateUnderAttack(); // Recomputes fully.
+		void updateUnderAttackFrom(Position position);
 
 	// Trivial functions
 	public:

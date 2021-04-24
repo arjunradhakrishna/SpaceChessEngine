@@ -6,6 +6,7 @@
 #include <chess/counting_board.h>
 #include <algo_linear/algoLinear.h>
 #include <fstream>
+#include <sstream>
 #include <filesystem>
 
 namespace test_utils {
@@ -279,6 +280,12 @@ TEST(CBoardSuite, Initialization) {
 
 	auto board = CBoard::startPosition();
 	std::cout << board->as_string(true, true) << std::endl;
-	std::cout << "..." << std::endl;
+	std::cout << board->attackString() << std::endl;
+
+	std::cout << "------------" << std::endl;
+
+	auto fen = Fen("1qrb4/r3Qp1k/p1R1p1pp/4P3/1P1PBP2/4P1B1/6PP/6K1 w - - 3 33");
+	board = CBoard::fromFen(fen);
+	std::cout << board->as_string(true, true) << std::endl;
 	std::cout << board->attackString() << std::endl;
 }

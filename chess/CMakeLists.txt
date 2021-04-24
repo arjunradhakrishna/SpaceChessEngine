@@ -12,6 +12,7 @@ add_library (chess  "board.h" "board.cpp"
 					"pgn.h" "pgn.cpp"
 					"counting_board.h" "counting_board.cpp"
 					"squares.h"
+					"direction.h"
 			)
 target_link_libraries (chess common)
 
