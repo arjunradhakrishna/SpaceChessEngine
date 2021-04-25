@@ -2,10 +2,13 @@
 #include "squares.h"
 #include "direction.h"
 #include <sstream>
+#include <bit>
+#include <cmath>
 
 namespace {
-	space::PieceType toPieceType(char c) {
-		using namespace space;
+	using namespace space;
+
+	PieceType toPieceType(char c) {
 		// Pawn, EnPessantCapturablePawn, Rook, Knight, Bishop, Queen, King, None
 		switch (c)
 		{
@@ -30,6 +33,38 @@ namespace {
 		default:
 			throw std::runtime_error(std::string("Unrecognizable piece type '") + c + "'");
 		}
+	}
+
+	std::pair<Direction, int> getDirectionAndDistance(Position source, Position destination) {
+		Direction direction;
+		int distance;
+		auto rankDiff = source.rank - destination.rank;
+		auto fileDiff = source.file - destination.file;
+		if (source.rank == destination.rank) {
+			direction = source.file < destination.file ? Direction::East : Direction::West;
+			distance = abs(fileDiff);
+		}
+		else if (source.file == destination.file) {
+			direction = source.file < destination.file ? Direction::North : Direction::South;
+			distance = abs(rankDiff);
+		}
+		else if (abs(rankDiff) == abs(fileDiff) && rankDiff > 0 && fileDiff > 0) {
+			direction = Direction::NorthEast;
+			distance = abs(rankDiff);
+		}
+		else if (abs(rankDiff) == abs(fileDiff) && rankDiff > 0 && fileDiff < 0) {
+			direction = Direction::NorthWest;
+			distance = abs(rankDiff);
+		}
+		else if (abs(rankDiff) == abs(fileDiff) && rankDiff < 0 && fileDiff > 0) {
+			direction = Direction::SouthEast;
+			distance = abs(rankDiff);
+		}
+		else if (abs(rankDiff) == abs(fileDiff) && rankDiff < 0 && fileDiff < 0) {
+			direction = Direction::SouthWest;
+			distance = abs(rankDiff);
+		}
+		return { direction, distance };
 	}
 }
 
@@ -228,6 +263,7 @@ namespace space {
 		newBoard->castlingRights = castlingRights;
 		newBoard->attackedBy = attackedBy;
 		newBoard->attackedByKnight = attackedByKnight;
+		return newBoard;
 	}
 
 	std::string CBoard::attackString() const {
@@ -440,5 +476,155 @@ namespace space {
 
 		board->updateUnderAttack();
 		return board;
+	}
+
+	bool CBoard::isValidMove(Move move) const {
+		// Trivial things.
+		if (
+			pieces[move.sourceRank][move.sourceFile].color != nextMover || // Moving wrong color piece
+			pieces[move.sourceRank][move.sourceFile].pieceType == PieceType::None || // Moving no piece
+			(pieces[move.destinationRank][move.destinationFile].pieceType != PieceType:: None
+			 && pieces[move.destinationRank][move.destinationFile].color == nextMover) // Capturing own piece.
+		) {
+			return false;
+		}
+
+		// Move semantics
+		auto movingPieceType = pieces[move.sourceRank][move.sourceFile].pieceType;
+		auto rankDiff = abs(move.sourceRank - move.destinationRank);
+		auto fileDiff = abs(move.sourceFile - move.destinationFile);
+		auto isOrtho = fileDiff == 0 || rankDiff == 0;
+		auto isDiagonal = fileDiff == rankDiff;
+		switch (movingPieceType) {
+			case PieceType::Queen: if (!isOrtho && !isDiagonal) return false; break;
+			case PieceType::Rook: if (!isOrtho) return false; break;
+			case PieceType::Bishop: if (!isDiagonal) return false; break;
+			case PieceType::Knight:
+				if (!((rankDiff == 2 && fileDiff == 1) || (rankDiff == 1 && fileDiff == 2))) return false;
+				break;
+			case PieceType::King:
+				if (!isOrtho && !isDiagonal) return false;
+				if (fileDiff == 2 && rankDiff == 0 && !isValidCastle(move)) return false;
+				if (rankDiff > 1 || fileDiff > 1) return false;
+				break;
+			case PieceType::Pawn:
+			case PieceType::EnPassantCapturablePawn:
+				auto startRank = nextMover == Color::White ? 1 : 6;
+				auto enpassantRank = nextMover == Color::White ? 4 : 3;
+				// Move in wrong direction
+				if ((move.sourceRank < move.destinationRank) != (nextMover == Color::White)) return false;
+				// Move 1 square
+				if (fileDiff == 0 && rankDiff == 1) break;
+				// Move 2 squares from starting square
+				if (fileDiff == 0 && rankDiff == 2 && move.sourceRank == startRank) break;
+				// Standard capture
+				if (fileDiff == 1 && rankDiff == 1 &&
+				    pieces[move.destinationRank][move.destinationFile].pieceType != PieceType::None) break;
+				// Enpassant capture
+				if (fileDiff == 1 && rankDiff == 1 && move.sourceRank == enpassantRank &&
+				    pieces[enpassantRank][move.destinationFile].pieceType == PieceType::EnPassantCapturablePawn) break;
+				return false;
+		}
+
+		// Not jumping over pieces (unless knight)
+		if (movingPieceType != PieceType::Knight) {
+			// Everything between start and destination square should be empty.
+			auto [dir, distance] = getDirectionAndDistance(
+				{move.sourceRank, move.sourceFile},
+				{move.destinationRank, move.destinationFile}
+			);
+			auto offset = directionToOffset(dir);
+			for (auto i = 1; i < distance; i++) {
+				auto p = pieces[move.sourceRank + i * offset.first][move.sourceFile + i * offset.second];
+				if (p.pieceType != PieceType::None) return false;
+			}
+		}
+
+		// Your king is in check and you don't fix it.
+		if (isUnderCheck(nextMover)) return isValidResponseToCheck(move);
+
+		// King moves to a square that is attacked.
+		auto otherColor = oppositeColor(nextMover);
+		if (movingPieceType == PieceType::King &&
+		    isUnderAttack({ move.destinationRank, move.destinationFile}, otherColor)) return false;
+
+		// Some piece that was pinned to the king moves off that
+		// file, rank, or diagonal.
+		auto kingPos = kingPosition[(int)nextMover];
+		auto kRankDiff = (move.sourceRank - kingPos.rank);
+		auto kFileDiff = (move.sourceFile - kingPos.file);
+		if (kRankDiff == 0 || kFileDiff == 0 || abs(kRankDiff) == abs(kFileDiff)) {
+			// Can be pinned.
+			auto [direction, dist]
+				= getDirectionAndDistance(kingPos, { move.sourceRank, move.sourceFile });
+			if (isUnderAttackFromDirection(
+				{ move.sourceRank, move.sourceFile},
+				otherColor,
+				oppositeDirection(direction)
+			)) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	bool CBoard::isValidCastle(Move move) const {
+		// We assume that the right color and piece are moving.
+		if (move.sourceRank != move.destinationRank) return false;
+		if (abs(move.sourceFile - move.destinationFile) != 2) return false;
+		auto castleType = move.destinationFile > move.sourceFile ? ShortCastle : LongCastle;
+		if (!castlingRights[(int)nextMover][castleType]) return false;
+
+		// Everything between king and rook should be empty.
+		auto rookFile = castleType == ShortCastle ? 7 : 0;
+		for (int f = std::min(rookFile, 4) + 1; f < std::max(rookFile, 4); f++) {
+			if (pieces[move.sourceRank][f].pieceType != PieceType::None) return false;
+		}
+
+		// King should not castle out of, through, or in to check.
+		auto attackingColor = oppositeColor(nextMover);
+		auto middleFile = move.sourceFile + (castleType == ShortCastle ? 1 : -1);
+		if (
+			isUnderAttack({move.sourceRank, move.sourceFile}, attackingColor) ||
+			isUnderAttack({move.sourceRank, move.destinationFile}, attackingColor) ||
+			isUnderAttack({move.sourceRank, middleFile}, attackingColor)
+		) {
+			return false;
+		}
+
+		return true;
+	}
+
+	bool CBoard::isValidResponseToCheck(Move move) const {
+		auto otherColor = oppositeColor(nextMover);
+
+		// How many ways is the king being checked?
+		auto kingPos = kingPosition[(int)nextMover];
+		auto krank = kingPos.rank, kfile = kingPos.file;
+		auto numChecks =
+			std::popcount(attackedBy[(int)otherColor][kingPos.rank][kingPos.file]) +
+			std::popcount(attackedByKnight[(int)otherColor][kingPos.rank][kingPos.file]);
+
+		// King moves
+		// if (move.pieceType == PieceType::King)
+		// auto takenPiece
+		for (auto dir : allDirections) {
+			auto offset = directionToOffset(dir);
+			auto destRank = krank + offset.first;
+			auto destFile = krank + offset.second;
+			auto takenPiece = pieces[destRank][destFile];
+
+			// Destination out of bounds
+			if (destRank < 0 || destRank > 7 || destFile < 0 || destFile > 7) continue;
+			// Taking own piece
+			if (takenPiece.pieceType != PieceType::None && takenPiece.color == nextMover) continue;
+			// Destination
+		}
+
+
+		// If it is a double check, then the king has to move. 
+		// No other option.
+		if (numChecks == 2) return false;
 	}
 }

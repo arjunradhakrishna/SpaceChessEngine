@@ -1,5 +1,7 @@
 #pragma once
 
+#include "common/base.h"
+
 namespace space {
 	enum Direction : unsigned char {
 		North         =   1,
@@ -23,6 +25,8 @@ namespace space {
 			case Direction::SouthEast: return { -1,  1 };
 			case Direction::SouthWest: return { -1, -1 };
 		}
+		space_assert(false, "Unknown knight direction.");
+		return { 0, 0 };
 	}
 
 	constexpr Direction oppositeDirection(Direction direction) {
@@ -36,6 +40,8 @@ namespace space {
 			case Direction::SouthEast: return Direction::NorthWest;
 			case Direction::SouthWest: return Direction::NorthEast;
 		}
+		space_assert(false, "Unknown knight direction.");
+		return Direction::North;
 	}
 
 	// Helpers for iteration.
@@ -88,6 +94,8 @@ namespace space {
 			case KnightDirection::Clock10: return {  1, -2 };
 			case KnightDirection::Clock11: return {  2, -1 };
 		}
+		space_assert(false, "Unknown knight direction.");
+		return { 0, 0 };
 	}
 
 	constexpr KnightDirection oppositeKnightDirection(KnightDirection direction) {
@@ -101,5 +109,7 @@ namespace space {
 			case KnightDirection::Clock10: return KnightDirection::Clock04;
 			case KnightDirection::Clock11: return KnightDirection::Clock05;
 		}
+		space_assert(false, "Unknown knight direction.");
+		return KnightDirection::Clock01;
 	}
 }

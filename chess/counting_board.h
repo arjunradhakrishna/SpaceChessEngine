@@ -37,7 +37,7 @@ namespace space {
 	class CBoard : public IBoard {
 	private: // All state
 		static constexpr auto ShortCastle = 0;
-		static constexpr auto LongCastle = 0;
+		static constexpr auto LongCastle = 1;
 
 		Color nextMover;
 
@@ -56,11 +56,18 @@ namespace space {
 		std::array<std::array<std::array<unsigned char, 8>, 8>, 2> attackedByKnight { 0 };
 
 	public:
+		// Game state
 		bool isStaleMate() const override {}
 		bool isCheckMate() const override {}
+
+		// Moves and updates
 		std::optional<Ptr> updateBoard(Move move) const override {}
 		MoveMap getValidMoves() const override {}
+		bool isValidMove(Move move) const;
+		bool isValidCastle(Move move) const;
+		bool isValidResponseToCheck(Move move) const;
 
+		// Initialization
 		static std::unique_ptr<CBoard> fromFen(const Fen& fen);
 		static std::unique_ptr<CBoard> startPosition();
 		std::string attackString() const;
@@ -72,6 +79,10 @@ namespace space {
 
 		void updateUnderAttack(); // Recomputes fully.
 		void updateUnderAttackFrom(Position position);
+
+		// We are going to use these to make moves.
+		void removePiece(Position position);
+		void addPiece(Position position, Piece piece);
 
 	// Trivial functions
 	public:
