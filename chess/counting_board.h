@@ -61,11 +61,11 @@ namespace space {
 		bool isCheckMate() const override {}
 
 		// Moves and updates
-		std::optional<Ptr> updateBoard(Move move) const override {}
+		std::optional<Ptr> updateBoard(Move move) const override;
 		MoveMap getValidMoves() const override {}
 		bool isValidMove(Move move) const;
 		bool isValidCastle(Move move) const;
-		bool isValidResponseToCheck(Move move) const;
+		bool isValidResponseToCheck(Move move, bool checkForPins=true) const;
 
 		// Initialization
 		static std::unique_ptr<CBoard> fromFen(const Fen& fen);
@@ -76,13 +76,14 @@ namespace space {
 		std::unique_ptr<CBoard> clone() const;
 		inline bool isUnderAttack(Position position, Color attackingColor) const;
 		inline bool isUnderAttackFromDirection(Position position, Color attackingColor, Direction direction) const;
+		Position getAttackingPosition(Position position, Color attackingColor) const;
 
 		void updateUnderAttack(); // Recomputes fully.
 		void updateUnderAttackFrom(Position position);
 
 		// We are going to use these to make moves.
-		void removePiece(Position position);
-		void addPiece(Position position, Piece piece);
+		void removePieceAt(Position position);
+		void addPieceAt(Piece piece, Position position);
 
 	// Trivial functions
 	public:

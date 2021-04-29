@@ -35,6 +35,12 @@ namespace {
 		}
 	}
 
+	bool inDirection(Position source, Position destination) {
+		auto rankDiff = abs(source.rank - destination.rank);
+		auto fileDiff = abs(source.file - destination.file);
+		return rankDiff == 0 || fileDiff == 0 || rankDiff == fileDiff;
+	}
+
 	std::pair<Direction, int> getDirectionAndDistance(Position source, Position destination) {
 		Direction direction;
 		int distance;
@@ -478,7 +484,46 @@ namespace space {
 		return board;
 	}
 
+	std::optional<IBoard::Ptr> CBoard::updateBoard(Move move) const {
+		if (!isValidMove(move)) return {};
+
+		auto newBoard = clone();
+
+		if (pieces[move.sourceRank][move.destinationRank].pieceType == PieceType::King &&
+			abs(move.sourceFile - move.destinationFile) == 2) {
+			// Castling.
+			// Remove king. Remove rook. Add rook. Add king.
+			auto rookFile = move.destinationRank > move.sourceRank ? 7 : 0;
+			auto rookDestinationFile = move.destinationRank > move.sourceRank ? 5 : 3;
+			auto rookRank = nextMover == Color::White ? 0 : 7;
+			newBoard->removePieceAt({ move.sourceRank, move.sourceFile });
+			newBoard->removePieceAt({ rookRank, rookFile });
+			newBoard->addPieceAt({ PieceType::King, nextMover }, { move.destinationRank, move.destinationFile });
+			newBoard->addPieceAt({ PieceType::Rook, nextMover }, { move.destinationRank, rookFile });
+		}
+		else if (pieces[move.sourceRank][move.sourceFile].pieceType == PieceType::Pawn
+			&& move.sourceFile != move.destinationFile
+			&& pieces[move.destinationRank][move.destinationFile].pieceType == PieceType::None
+		) {
+			// En passant
+			// Remove captured pawn. Remove capturing pawn. Add capturing pawn.
+			newBoard->removePieceAt({ move.sourceRank, move.sourceFile });
+			newBoard->removePieceAt({ move.sourceRank, move.destinationFile });
+			newBoard->addPieceAt({ PieceType::Pawn, nextMover }, { move.destinationRank, move.destinationFile });
+		}
+		else {
+			newBoard->removePieceAt({ move.sourceRank, move.sourceFile });
+			if (pieces[move.destinationRank][move.destinationFile].pieceType != PieceType::None) {
+				newBoard->removePieceAt({ move.destinationRank, move.destinationFile });
+			}
+			newBoard->addPieceAt(pieces[move.sourceRank][move.sourceFile], { move.destinationRank, move.destinationFile });
+		}
+		return newBoard;
+	}
+
 	bool CBoard::isValidMove(Move move) const {
+		auto otherColor = oppositeColor(nextMover);
+
 		// Trivial things.
 		if (
 			pieces[move.sourceRank][move.sourceFile].color != nextMover || // Moving wrong color piece
@@ -506,6 +551,7 @@ namespace space {
 				if (!isOrtho && !isDiagonal) return false;
 				if (fileDiff == 2 && rankDiff == 0 && !isValidCastle(move)) return false;
 				if (rankDiff > 1 || fileDiff > 1) return false;
+				if (isUnderAttack({ move.destinationRank, move.destinationFile}, otherColor)) return false;
 				break;
 			case PieceType::Pawn:
 			case PieceType::EnPassantCapturablePawn:
@@ -540,31 +586,20 @@ namespace space {
 			}
 		}
 
-		// Your king is in check and you don't fix it.
-		if (isUnderCheck(nextMover)) return isValidResponseToCheck(move);
-
-		// King moves to a square that is attacked.
-		auto otherColor = oppositeColor(nextMover);
-		if (movingPieceType == PieceType::King &&
-		    isUnderAttack({ move.destinationRank, move.destinationFile}, otherColor)) return false;
-
 		// Some piece that was pinned to the king moves off that
 		// file, rank, or diagonal.
 		auto kingPos = kingPosition[(int)nextMover];
-		auto kRankDiff = (move.sourceRank - kingPos.rank);
-		auto kFileDiff = (move.sourceFile - kingPos.file);
-		if (kRankDiff == 0 || kFileDiff == 0 || abs(kRankDiff) == abs(kFileDiff)) {
+		Position sourcePosition = { move.sourceRank, move.sourceFile };
+		if (inDirection(kingPos, sourcePosition)) {
 			// Can be pinned.
-			auto [direction, dist]
-				= getDirectionAndDistance(kingPos, { move.sourceRank, move.sourceFile });
-			if (isUnderAttackFromDirection(
-				{ move.sourceRank, move.sourceFile},
-				otherColor,
-				oppositeDirection(direction)
-			)) {
+			auto [direction, dist] = getDirectionAndDistance(kingPos, sourcePosition);
+			if (isUnderAttackFromDirection(sourcePosition, otherColor, oppositeDirection(direction))) {
 				return false;
 			}
 		}
+
+		// Your king is in check and you don't fix it.
+		if (isUnderCheck(nextMover)) return isValidResponseToCheck(move, false);
 
 		return true;
 	}
@@ -596,35 +631,171 @@ namespace space {
 		return true;
 	}
 
-	bool CBoard::isValidResponseToCheck(Move move) const {
+	bool CBoard::isValidResponseToCheck(Move move, bool checkForPins) const {
 		auto otherColor = oppositeColor(nextMover);
-
-		// How many ways is the king being checked?
-		auto kingPos = kingPosition[(int)nextMover];
-		auto krank = kingPos.rank, kfile = kingPos.file;
-		auto numChecks =
-			std::popcount(attackedBy[(int)otherColor][kingPos.rank][kingPos.file]) +
-			std::popcount(attackedByKnight[(int)otherColor][kingPos.rank][kingPos.file]);
-
-		// King moves
-		// if (move.pieceType == PieceType::King)
-		// auto takenPiece
-		for (auto dir : allDirections) {
-			auto offset = directionToOffset(dir);
-			auto destRank = krank + offset.first;
-			auto destFile = krank + offset.second;
-			auto takenPiece = pieces[destRank][destFile];
-
-			// Destination out of bounds
-			if (destRank < 0 || destRank > 7 || destFile < 0 || destFile > 7) continue;
-			// Taking own piece
-			if (takenPiece.pieceType != PieceType::None && takenPiece.color == nextMover) continue;
-			// Destination
+		auto movingPieceType = pieces[move.sourceRank][move.sourceFile].pieceType;
+		if (movingPieceType == PieceType::King) { // King move
+			return attackedBy[(int)otherColor][move.destinationRank][move.destinationFile] == 0;
 		}
 
-
 		// If it is a double check, then the king has to move. 
-		// No other option.
-		if (numChecks == 2) return false;
+		auto kingPos = kingPosition[(int)nextMover];
+		auto numKnightChecks = std::popcount(attackedByKnight[(int)otherColor][kingPos.rank][kingPos.file]);
+		auto numOtherChecks = std::popcount(attackedBy[(int)otherColor][kingPos.rank][kingPos.file]);
+		if (numOtherChecks + numKnightChecks > 1) return false;
+
+		// Also, moving piece cannot be pinned.
+		Position sourcePosition = { move.sourceRank, move.sourceFile };
+		Position destinationPosition = { move.destinationRank, move.destinationFile };
+		if (checkForPins) {
+			if (inDirection(kingPos, sourcePosition)) {
+				// Can be pinned.
+				auto [direction, dist] = getDirectionAndDistance(kingPos, sourcePosition);
+				if (isUnderAttackFromDirection(sourcePosition, otherColor, oppositeDirection(direction))) {
+					return false;
+				}
+			}
+		}
+
+		// Some other piece moved.
+		// Capture
+		auto attackingPosition = getAttackingPosition(kingPos, otherColor);
+		if (attackingPosition.rank == move.destinationRank &&
+			attackingPosition.file == move.destinationFile) {
+			return true;
+		}
+
+		if (inDirection(kingPos, destinationPosition) && inDirection(kingPos, attackingPosition)) {
+			auto [blockDir, blockDist] = getDirectionAndDistance(kingPos, destinationPosition);
+			auto [attackDir, attackDist] = getDirectionAndDistance(kingPos, destinationPosition);
+			if (blockDir == attackDir && blockDist <= attackDist) return true;
+		}
+
+		return false;
+	}
+
+	Position CBoard::getAttackingPosition(Position position, Color attackingColor) const {
+		auto attacks = attackedBy[(int)attackingColor][position.rank][position.file];
+		auto knightAttacks = attackedByKnight[(int)attackingColor][position.rank][position.file];
+		if (attacks != 0) {
+			for (auto dir : allDirections) {
+				if (attacks & dir != 0) {
+					auto offset = directionToOffset(dir);
+					for (int i = 0; i < 7; i++) {
+						auto r = position.rank + i * offset.first;
+						auto f = position.file + i * offset.second;
+						if (pieces[r][f].pieceType != PieceType::None) return { r, f };
+					}
+				}
+			}
+		}
+		for (auto kdir : knightDirections) {
+			if (knightAttacks & kdir) {
+				auto offset = knightDirectionToOffset(kdir);
+				return { position.rank + offset.first, position.file + offset.second };
+			}
+		}
+	}
+
+	void CBoard::addPieceAt(Piece piece, Position position) {
+		// Add piece.
+		pieces[position.rank][position.file] = piece;
+
+		// Block all directional attacks.
+		for (auto direction : allDirections) {
+			for (auto color : { Color::White, Color::Black }) {
+				auto isAttacked = (attackedBy[(int)color][position.rank][position.file] & direction) != 0;
+				if (!isAttacked) continue;
+
+				auto offset = directionToOffset(oppositeDirection(direction));
+				auto r = position.rank + offset.first;
+				auto f = position.file + offset.second;
+				while (0 <= r && r <= 7 && 0 <= f && f <= 7) {
+					attackedBy[(int)color][r][f] &= (~direction);
+					if (pieces[r][f].pieceType != PieceType::None) break;
+					r += offset.first;
+					f += offset.second;
+				}
+			}
+		}
+
+		// Add attacks by this piece.
+		updateUnderAttackFrom(position);
+	}
+
+	void CBoard::removePieceAt(Position position) {
+		auto piece = pieces[position.rank][position.file];
+		auto r = position.rank;
+		auto f = position.file;
+
+		// Remove attacks from this piece.
+		auto& directions =
+			(piece.pieceType == PieceType::Queen)  ? allDirections : (
+			(piece.pieceType == PieceType::Rook)   ? cardinalDirections : (
+			(piece.pieceType == PieceType::Bishop) ? diagonalDirections : (
+			noDirections)));
+		for (auto direction : directions) {
+			auto offset = directionToOffset(direction);
+			for (int cr = r + offset.first, cf = f + offset.second;
+			     cr >= 0 && cr <= 7 && cf >= 0 && cr <= 7;
+				 cr += offset.first, cf += offset.second
+			) {
+				attackedBy[(int)piece.color][cr][cf] &= (~oppositeDirection(direction));
+				if (pieces[cr][cf].pieceType != PieceType::None) break;
+			}
+		}
+
+		// Knight
+		if (piece.pieceType == PieceType::Knight) {
+			for (auto kdirection : knightDirections) {
+				auto offset = knightDirectionToOffset(kdirection);
+				auto cr = r + offset.first;
+				auto cf = f + offset.second;
+				if (cr < 0 || cr > 7 || cf < 0 || cf > 7) continue;
+				attackedByKnight[(int)piece.color][cr][cf] &= (~oppositeKnightDirection(kdirection));
+			}
+		}
+
+		// Kings
+		if (piece.pieceType == PieceType::King) {
+			for (auto direction : allDirections) {
+				auto offset = directionToOffset(direction);
+				auto cr = r + offset.first;
+				auto cf = f + offset.second;
+				if (cr < 0 || cr > 7 || cf < 0 || cf > 7) continue;
+				attackedBy[(int)piece.color][cr][cf] &= (~oppositeDirection(direction));
+			}
+		}
+
+		// Pawns
+		if (piece.pieceType == PieceType::Pawn || piece.pieceType == PieceType::EnPassantCapturablePawn) {
+			auto rdiff = piece.color == Color::White ? 1 : -1;
+			for (auto direction : diagonalDirections) {
+				auto offset = directionToOffset(direction);
+				if (offset.first != rdiff) continue;
+				auto cr = r + offset.first;
+				auto cf = f + offset.second;
+				if (cr < 0 || cr > 7 || cf < 0 || cf > 7) continue;
+				attackedBy[(int)piece.color][cr][cf] &= (~oppositeDirection(direction));
+			}
+		}
+
+		// Unblock directional attacks.
+		for (auto direction : allDirections) {
+			for (auto color : { Color::White, Color::Black }) {
+				auto isAttacked = (attackedBy[(int)color][position.rank][position.file] & direction) != 0;
+				if (!isAttacked) continue;
+
+				auto offset = directionToOffset(oppositeDirection(direction));
+				auto r = position.rank + offset.first;
+				auto f = position.file + offset.second;
+				while (0 <= r && r <= 7 && 0 <= f && f <= 7) {
+					attackedBy[(int)color][r][f] |= direction;
+					if (pieces[r][f].pieceType != PieceType::None) break;
+					r += offset.first;
+					f += offset.second;
+				}
+			}
+		}
 	}
 }
