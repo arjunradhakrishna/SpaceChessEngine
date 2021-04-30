@@ -12,5 +12,5 @@ namespace space {
 	NullStream& operator<<(NullStream& ns, const T&) { return ns; }
 
 	static auto& debug = std::cout;
-	// auto debug = NullStream();
+	// static auto debug = NullStream();
 }

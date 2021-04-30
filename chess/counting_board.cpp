@@ -95,7 +95,6 @@ namespace space {
 
 	inline bool CBoard::isUnderCheck(Color color, std::optional<Position> targetKingPosition) const {
 		auto& position = kingPosition[(int)color];
-		debug << "King position: " << (char)('a' + position.file) << (position.rank + 1) << std::endl;
 		auto attackingColor = oppositeColor(color);
 		return isUnderAttack(position, attackingColor);
 	}
@@ -284,20 +283,14 @@ namespace space {
 			ss << (color == Color::White ? "white" : "black");
 			ss << " (ortho and diagonal):" << std::endl;
 
-			ss << "    |";
-			for (int f = 0; f <= 7; f++) {
-				ss << "  " << (char)(f + 'a') << " |";
-			}
-			ss << std::endl;
-
-			ss << "    |";
+			ss << "|";
 			for (int f = 0; f <= 7; f++) {
 				ss << "----|";
 			}
 			ss << std::endl;
 
 			for (int r = 7; r >= 0; r--) {
-				ss << (r+1) << "   |";
+				ss << "|";
 				for (int f = 0; f <= 7; f++) {
 					ss << (isUnderAttackFromDirection({r,f}, color, Direction::NorthWest) ? "\u2196" : " ");
 					ss << (isUnderAttackFromDirection({r,f}, color, Direction::North) ? "\u2191\u2191" : "  ");
@@ -306,7 +299,7 @@ namespace space {
 				}
 				ss << std::endl;
 
-				ss << (r+1) << "   |";
+				ss << "|";
 				for (int f = 0; f <= 7; f++) {
 					ss << (isUnderAttackFromDirection({r,f}, color, Direction::West) ? "\u2190" : " ");
 					ss << (char)(f + 'a') << (r+1);
@@ -315,7 +308,7 @@ namespace space {
 				}
 				ss << std::endl;
 
-				ss << (r+1) << "   |";
+				ss << "|";
 				for (int f = 0; f <= 7; f++) {
 					ss << (isUnderAttackFromDirection({r,f}, color, Direction::SouthWest) ? "\u2199" : " ");
 					ss << (isUnderAttackFromDirection({r,f}, color, Direction::South) ? "\u2193\u2193" : "  ");
@@ -324,36 +317,13 @@ namespace space {
 				}
 				ss << std::endl;
 
-				ss << (r+1) << "   |";
+				ss << "|";
 				for (int f = 0; f <= 7; f++) {
 					ss << "----|";
 				}
 				ss << std::endl;
 			}
 		}
-		/*
-		for (auto color : { Color::White, Color::Black }) {
-			ss << "Attacks from ";
-			ss << (color == Color::White ? "white" : "black");
-			ss << " (ortho and diagonal):" << std::endl;
-			for (int r = 7; r >= 0; r--) {
-				ss << (r+1) << "   |";
-
-				for (auto d = 0; d < directions.size(); d++) {
-					for (int f = 0; f <= 7; f++) {
-						auto da = directions[d];
-						bool attacked = isUnderAttackFromDirection({r, f}, color, da.first);
-						ss << (attacked ? da.second : "\u00b7");
-					}
-					ss << "|  ";
-					if (d != directions.size() - 1) ss << (r+1) << "|";
-				}
-				ss << std::endl;
-			}
-			for (int i = 0; i < 8; i++) ss << "     " << fileNames;
-			ss << std::endl;
-		}
-		*/
 
 		return ss.str();
 	}
@@ -451,10 +421,10 @@ namespace space {
 				auto color = (c >= 'a' && c <= 'z') ? Color::Black : Color::White;
 				auto pieceType = toPieceType(c);
 				board->pieces[rank][file] = { pieceType, color };
-				file += 1;
 				if (pieceType == PieceType::King) {
 					board->kingPosition[(int)color] = { rank, file };
 				}
+				file += 1;
 			}
 		}
 
@@ -462,11 +432,12 @@ namespace space {
 		board->nextMover = mover == 'w' ? Color::White : Color::Black;
 
 		std::string castling; ss >> castling;
+		debug << "Castling: " << castling << std::endl;
 		for (auto c : castling) {
 			if (c == 'K') board->castlingRights[(int)Color::White][ShortCastle] = true;
 			if (c == 'Q') board->castlingRights[(int)Color::White][LongCastle] = true;
-			if (c == 'k') board->castlingRights[(int)Color::White][ShortCastle] = true;
-			if (c == 'q') board->castlingRights[(int)Color::White][LongCastle] = true;
+			if (c == 'k') board->castlingRights[(int)Color::Black][ShortCastle] = true;
+			if (c == 'q') board->castlingRights[(int)Color::Black][LongCastle] = true;
 		}
 
 		std::string enpassant; ss >> enpassant;
@@ -499,7 +470,7 @@ namespace space {
 			newBoard->kingPosition[(int)nextMover] = { move.destinationRank, move.destinationFile };
 		}
 
-		int baseRank = nextMover == Color::White ? 0 : 7;
+		auto baseRank = nextMover == Color::White ? 0 : 7;
 		// Update own castling rights.
 		if (movingPiece.pieceType == PieceType::King) {
 			newBoard->castlingRights[(int)nextMover][ShortCastle] = false;
@@ -513,25 +484,26 @@ namespace space {
 		}
 
 		// Update opposition castling rights.
-		int backRank = nextMover == Color::White ? 7 : 0;
+		auto backRank = nextMover == Color::White ? 7 : 0;
+		auto otherColor = oppositeColor(nextMover);
 		if (move.destinationRank == backRank && move.destinationFile == 0) { // No need to check if it is a rook
-			newBoard->castlingRights[(int)nextMover][LongCastle] = false;
+			newBoard->castlingRights[(int)otherColor][LongCastle] = false;
 		}
 		else if (move.destinationRank == backRank && move.destinationFile == 7) {
-			newBoard->castlingRights[(int)nextMover][ShortCastle] = false;
+			newBoard->castlingRights[(int)otherColor][ShortCastle] = false;
 		}
 
 		if (movingPiece.pieceType == PieceType::King &&
 			abs(move.sourceFile - move.destinationFile) == 2) {
 			// Castling.
 			// Remove king. Remove rook. Add rook. Add king.
-			auto rookFile = move.destinationRank > move.sourceRank ? 7 : 0;
-			auto rookDestinationFile = move.destinationRank > move.sourceRank ? 5 : 3;
+			auto rookFile = move.destinationFile > move.sourceFile ? 7 : 0;
+			auto rookDestinationFile = move.destinationFile > move.sourceFile ? 5 : 3;
 			auto rookRank = nextMover == Color::White ? 0 : 7;
 			newBoard->removePieceAt({ move.sourceRank, move.sourceFile });
 			newBoard->removePieceAt({ rookRank, rookFile });
 			newBoard->addPieceAt({ PieceType::King, nextMover }, { move.destinationRank, move.destinationFile });
-			newBoard->addPieceAt({ PieceType::Rook, nextMover }, { move.destinationRank, rookFile });
+			newBoard->addPieceAt({ PieceType::Rook, nextMover }, { move.destinationRank, rookDestinationFile });
 		}
 		else if (movingPiece.pieceType == PieceType::Pawn
 			&& move.sourceFile != move.destinationFile
@@ -577,6 +549,7 @@ namespace space {
 		auto fileDiff = abs(move.sourceFile - move.destinationFile);
 		auto isOrtho = fileDiff == 0 || rankDiff == 0;
 		auto isDiagonal = fileDiff == rankDiff;
+		auto isCastle = fileDiff == 2 && rankDiff == 0;
 		switch (movingPieceType) {
 			case PieceType::Queen: if (!isOrtho && !isDiagonal) return false; break;
 			case PieceType::Rook: if (!isOrtho) return false; break;
@@ -586,8 +559,8 @@ namespace space {
 				break;
 			case PieceType::King:
 				if (!isOrtho && !isDiagonal) return false;
-				if (fileDiff == 2 && rankDiff == 0 && !isValidCastle(move)) return false;
-				if (rankDiff > 1 || fileDiff > 1) return false;
+				if (isCastle && !isValidCastle(move)) return false;
+				if (!isCastle && (rankDiff > 1 || fileDiff > 1)) return false;
 				if (isUnderAttack({ move.destinationRank, move.destinationFile}, otherColor)) return false;
 				break;
 			case PieceType::Pawn:
@@ -617,8 +590,6 @@ namespace space {
 				{move.sourceRank, move.sourceFile},
 				{move.destinationRank, move.destinationFile}
 			);
-			debug << "Moving in direction: " << directionToString(dir)
-			      << " for " << distance << " squares." << std::endl;
 			auto offset = directionToOffset(dir);
 			for (auto i = 1; i < distance; i++) {
 				auto p = pieces[move.sourceRank + i * offset.first][move.sourceFile + i * offset.second];
@@ -631,10 +602,24 @@ namespace space {
 		// file, rank, or diagonal.
 		auto kingPos = kingPosition[(int)nextMover];
 		Position sourcePosition = { move.sourceRank, move.sourceFile };
-		if (inDirection(kingPos, sourcePosition)) {
+		if (movingPieceType != PieceType::King && inDirection(kingPos, sourcePosition)) {
 			// Can be pinned.
 			auto [direction, dist] = getDirectionAndDistance(kingPos, sourcePosition);
-			if (isUnderAttackFromDirection(sourcePosition, otherColor, oppositeDirection(direction))) {
+
+			// Was there something between the moving piece and the king?
+			auto blocked = false;
+			auto offset = directionToOffset(direction);
+			for (auto d = 1; d < dist; d++) {
+				auto r = kingPos.rank + d * offset.first;
+				auto f = kingPos.file + d * offset.second;
+				debug << "Checking " << (char)('a' + f) << (r + 1) << std::endl;
+				if (pieces[r][f].pieceType != PieceType::None) {
+					blocked = true;
+					break;
+				}
+			}
+
+			if (!blocked && isUnderAttackFromDirection(sourcePosition, otherColor, oppositeDirection(direction))) {
 				return false;
 			}
 		}

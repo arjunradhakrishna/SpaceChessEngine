@@ -42,6 +42,7 @@ namespace test_utils {
 	}
 
 	void validate_game_moves(space::Game& game) {
+		space::debug << game.metadata["Site"] << std::endl;
 		auto board = space::CBoard::fromFen(game.starting_position);
 		space::debug << board->as_string(true, true) << std::endl;
 		space::debug << static_cast<space::CBoard*>(board.get())->attackString() << std::endl;
@@ -268,7 +269,7 @@ TEST(BoardSuite, PGNParseTest) {
 		"games/lichess_db_standard_rated_2013-01.pgn",
 		std::ios_base::in
 	);
-	auto games = PGN::parse_many(f, 1);
+	auto games = PGN::parse_many(f, 100);
 	f.close();
 
 	for (auto& game : games) {

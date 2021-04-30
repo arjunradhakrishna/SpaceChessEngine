@@ -151,6 +151,18 @@ namespace {
 		}
 		ss << (perspective == Color::White ? "   a b c d e f g h" : "   h g f e d c b a")
 		   << std::endl;
+		if (board.canCastleRight(Color::White)) {
+			ss << "White can short castle" << std::endl;
+		}
+		if (board.canCastleRight(Color::White)) {
+			ss << "White can long castle" << std::endl;
+		}
+		if (board.canCastleRight(Color::Black)) {
+			ss << "Black can long castle" << std::endl;
+		}
+		if (board.canCastleRight(Color::Black)) {
+			ss << "Black can short castle" << std::endl;
+		}
 
 		return ss.str();
 	}
