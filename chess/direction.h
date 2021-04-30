@@ -14,6 +14,19 @@ namespace space {
 		SouthWest     = 128,
 	};
 
+	static std::string directionToString(Direction dir) {
+		switch (dir) {
+			case Direction::North:     return "North";
+			case Direction::South:     return "South";
+			case Direction::East:      return "East";
+			case Direction::West:      return "West";
+			case Direction::NorthEast: return "NorthEast";
+			case Direction::NorthWest: return "NorthWest";
+			case Direction::SouthEast: return "SouthEast";
+			case Direction::SouthWest: return "SouthWest";
+		}
+	}
+
 	constexpr std::pair<int, int> directionToOffset(Direction direction) {
 		switch (direction) {
 			case Direction::North:     return {  1,  0 };
@@ -25,7 +38,7 @@ namespace space {
 			case Direction::SouthEast: return { -1,  1 };
 			case Direction::SouthWest: return { -1, -1 };
 		}
-		space_assert(false, "Unknown knight direction.");
+		space_assert(false, "Unknown direction.");
 		return { 0, 0 };
 	}
 

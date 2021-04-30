@@ -1,9 +1,11 @@
 #include "counting_board.h"
 #include "squares.h"
 #include "direction.h"
+#include "debug.h"
 #include <sstream>
 #include <bit>
 #include <cmath>
+#include <iostream>
 
 namespace {
 	using namespace space;
@@ -44,14 +46,14 @@ namespace {
 	std::pair<Direction, int> getDirectionAndDistance(Position source, Position destination) {
 		Direction direction;
 		int distance;
-		auto rankDiff = source.rank - destination.rank;
-		auto fileDiff = source.file - destination.file;
+		auto rankDiff = destination.rank - source.rank;
+		auto fileDiff = destination.file - source.file;
 		if (source.rank == destination.rank) {
 			direction = source.file < destination.file ? Direction::East : Direction::West;
 			distance = abs(fileDiff);
 		}
 		else if (source.file == destination.file) {
-			direction = source.file < destination.file ? Direction::North : Direction::South;
+			direction = source.rank < destination.rank ? Direction::North : Direction::South;
 			distance = abs(rankDiff);
 		}
 		else if (abs(rankDiff) == abs(fileDiff) && rankDiff > 0 && fileDiff > 0) {
@@ -93,6 +95,7 @@ namespace space {
 
 	inline bool CBoard::isUnderCheck(Color color, std::optional<Position> targetKingPosition) const {
 		auto& position = kingPosition[(int)color];
+		debug << "King position: " << (char)('a' + position.file) << (position.rank + 1) << std::endl;
 		auto attackingColor = oppositeColor(color);
 		return isUnderAttack(position, attackingColor);
 	}
@@ -283,13 +286,13 @@ namespace space {
 
 			ss << "    |";
 			for (int f = 0; f <= 7; f++) {
-				ss << " " << (char)(f + 'a') << " |";
+				ss << "  " << (char)(f + 'a') << " |";
 			}
 			ss << std::endl;
 
 			ss << "    |";
 			for (int f = 0; f <= 7; f++) {
-				ss << "---|";
+				ss << "----|";
 			}
 			ss << std::endl;
 
@@ -297,7 +300,7 @@ namespace space {
 				ss << (r+1) << "   |";
 				for (int f = 0; f <= 7; f++) {
 					ss << (isUnderAttackFromDirection({r,f}, color, Direction::NorthWest) ? "\u2196" : " ");
-					ss << (isUnderAttackFromDirection({r,f}, color, Direction::North) ? "\u2191" : " ");
+					ss << (isUnderAttackFromDirection({r,f}, color, Direction::North) ? "\u2191\u2191" : "  ");
 					ss << (isUnderAttackFromDirection({r,f}, color, Direction::NorthEast) ? "\u2197" : " ");
 					ss << "|";
 				}
@@ -306,7 +309,7 @@ namespace space {
 				ss << (r+1) << "   |";
 				for (int f = 0; f <= 7; f++) {
 					ss << (isUnderAttackFromDirection({r,f}, color, Direction::West) ? "\u2190" : " ");
-					ss << " ";
+					ss << (char)(f + 'a') << (r+1);
 					ss << (isUnderAttackFromDirection({r,f}, color, Direction::East) ? "\u2192" : " ");
 					ss << "|";
 				}
@@ -315,7 +318,7 @@ namespace space {
 				ss << (r+1) << "   |";
 				for (int f = 0; f <= 7; f++) {
 					ss << (isUnderAttackFromDirection({r,f}, color, Direction::SouthWest) ? "\u2199" : " ");
-					ss << (isUnderAttackFromDirection({r,f}, color, Direction::South) ? "\u2193" : " ");
+					ss << (isUnderAttackFromDirection({r,f}, color, Direction::South) ? "\u2193\u2193" : "  ");
 					ss << (isUnderAttackFromDirection({r,f}, color, Direction::SouthEast) ? "\u2198" : " ");
 					ss << "|";
 				}
@@ -323,7 +326,7 @@ namespace space {
 
 				ss << (r+1) << "   |";
 				for (int f = 0; f <= 7; f++) {
-					ss << "---|";
+					ss << "----|";
 				}
 				ss << std::endl;
 			}
@@ -380,7 +383,7 @@ namespace space {
 		for (auto direction : directions) {
 			auto offset = directionToOffset(direction);
 			for (int cr = r + offset.first, cf = f + offset.second;
-			     cr >= 0 && cr <= 7 && cf >= 0 && cr <= 7;
+			     cr >= 0 && cr <= 7 && cf >= 0 && cf <= 7;
 				 cr += offset.first, cf += offset.second
 			) {
 				attackedBy[(int)piece.color][cr][cf] |= oppositeDirection(direction);
@@ -424,7 +427,7 @@ namespace space {
 		}
 	}
 
-	std::unique_ptr<CBoard> CBoard::fromFen(const Fen& fen) {
+	IBoard::Ptr CBoard::fromFen(const Fen& fen) {
 		auto board = std::make_unique<CBoard>();
 
 		auto ss = std::stringstream(fen.fen);
@@ -453,7 +456,6 @@ namespace space {
 					board->kingPosition[(int)color] = { rank, file };
 				}
 			}
-
 		}
 
 		char mover; ss >> mover;
@@ -485,11 +487,41 @@ namespace space {
 	}
 
 	std::optional<IBoard::Ptr> CBoard::updateBoard(Move move) const {
+		debug << "Starting update board..." << std::endl;
 		if (!isValidMove(move)) return {};
+		debug << "Is valid move." << std::endl;
 
 		auto newBoard = clone();
+		auto movingPiece = pieces[move.sourceRank][move.sourceFile];
 
-		if (pieces[move.sourceRank][move.destinationRank].pieceType == PieceType::King &&
+		newBoard->nextMover = oppositeColor(nextMover);
+		if (movingPiece.pieceType == PieceType::King) {
+			newBoard->kingPosition[(int)nextMover] = { move.destinationRank, move.destinationFile };
+		}
+
+		int baseRank = nextMover == Color::White ? 0 : 7;
+		// Update own castling rights.
+		if (movingPiece.pieceType == PieceType::King) {
+			newBoard->castlingRights[(int)nextMover][ShortCastle] = false;
+			newBoard->castlingRights[(int)nextMover][LongCastle] = false;
+		}
+		else if (move.sourceRank == baseRank && move.sourceFile == 0) { // No need to check if it is a rook
+			newBoard->castlingRights[(int)nextMover][LongCastle] = false;
+		}
+		else if (move.sourceRank == baseRank && move.sourceFile == 7) {
+			newBoard->castlingRights[(int)nextMover][ShortCastle] = false;
+		}
+
+		// Update opposition castling rights.
+		int backRank = nextMover == Color::White ? 7 : 0;
+		if (move.destinationRank == backRank && move.destinationFile == 0) { // No need to check if it is a rook
+			newBoard->castlingRights[(int)nextMover][LongCastle] = false;
+		}
+		else if (move.destinationRank == backRank && move.destinationFile == 7) {
+			newBoard->castlingRights[(int)nextMover][ShortCastle] = false;
+		}
+
+		if (movingPiece.pieceType == PieceType::King &&
 			abs(move.sourceFile - move.destinationFile) == 2) {
 			// Castling.
 			// Remove king. Remove rook. Add rook. Add king.
@@ -501,7 +533,7 @@ namespace space {
 			newBoard->addPieceAt({ PieceType::King, nextMover }, { move.destinationRank, move.destinationFile });
 			newBoard->addPieceAt({ PieceType::Rook, nextMover }, { move.destinationRank, rookFile });
 		}
-		else if (pieces[move.sourceRank][move.sourceFile].pieceType == PieceType::Pawn
+		else if (movingPiece.pieceType == PieceType::Pawn
 			&& move.sourceFile != move.destinationFile
 			&& pieces[move.destinationRank][move.destinationFile].pieceType == PieceType::None
 		) {
@@ -516,12 +548,16 @@ namespace space {
 			if (pieces[move.destinationRank][move.destinationFile].pieceType != PieceType::None) {
 				newBoard->removePieceAt({ move.destinationRank, move.destinationFile });
 			}
-			newBoard->addPieceAt(pieces[move.sourceRank][move.sourceFile], { move.destinationRank, move.destinationFile });
+			newBoard->addPieceAt(movingPiece, { move.destinationRank, move.destinationFile });
 		}
 		return newBoard;
 	}
 
 	bool CBoard::isValidMove(Move move) const {
+		debug << "Validating move: " << (char)(move.sourceFile + 'a') << (move.sourceRank + 1)
+		      << " to "
+		      << (char)(move.destinationFile + 'a') << (move.destinationRank + 1)
+		      << std::endl;
 		auto otherColor = oppositeColor(nextMover);
 
 		// Trivial things.
@@ -533,6 +569,7 @@ namespace space {
 		) {
 			return false;
 		}
+		debug << "Trivial checks passed." << std::endl;
 
 		// Move semantics
 		auto movingPieceType = pieces[move.sourceRank][move.sourceFile].pieceType;
@@ -571,6 +608,7 @@ namespace space {
 				    pieces[enpassantRank][move.destinationFile].pieceType == PieceType::EnPassantCapturablePawn) break;
 				return false;
 		}
+		debug << "Move semantics are correct." << std::endl;
 
 		// Not jumping over pieces (unless knight)
 		if (movingPieceType != PieceType::Knight) {
@@ -579,12 +617,15 @@ namespace space {
 				{move.sourceRank, move.sourceFile},
 				{move.destinationRank, move.destinationFile}
 			);
+			debug << "Moving in direction: " << directionToString(dir)
+			      << " for " << distance << " squares." << std::endl;
 			auto offset = directionToOffset(dir);
 			for (auto i = 1; i < distance; i++) {
 				auto p = pieces[move.sourceRank + i * offset.first][move.sourceFile + i * offset.second];
 				if (p.pieceType != PieceType::None) return false;
 			}
 		}
+		debug << "Move doesn't jump over pieces." << std::endl;
 
 		// Some piece that was pinned to the king moves off that
 		// file, rank, or diagonal.
@@ -597,9 +638,15 @@ namespace space {
 				return false;
 			}
 		}
+		debug << "Move doesn't move a piece pinned to the king." << std::endl;
 
 		// Your king is in check and you don't fix it.
-		if (isUnderCheck(nextMover)) return isValidResponseToCheck(move, false);
+		if (isUnderCheck(nextMover)) {
+			auto valid = isValidResponseToCheck(move, false);
+			debug << "Move is valid response to check." << std::endl;
+		}
+
+		debug << "Move is valid." << std::endl;
 
 		return true;
 	}
@@ -725,6 +772,7 @@ namespace space {
 
 	void CBoard::removePieceAt(Position position) {
 		auto piece = pieces[position.rank][position.file];
+		pieces[position.rank][position.file] = { PieceType::None, Color::White };
 		auto r = position.rank;
 		auto f = position.file;
 
@@ -787,6 +835,15 @@ namespace space {
 				if (!isAttacked) continue;
 
 				auto offset = directionToOffset(oppositeDirection(direction));
+
+				// Pawn or king move?
+				auto adjacentPiece = pieces[position.rank - offset.first][position.file - offset.second];
+				if (adjacentPiece.pieceType == PieceType::King ||
+					adjacentPiece.pieceType == PieceType::Pawn ||
+					adjacentPiece.pieceType == PieceType::EnPassantCapturablePawn) {
+					continue;
+				}
+
 				auto r = position.rank + offset.first;
 				auto f = position.file + offset.second;
 				while (0 <= r && r <= 7 && 0 <= f && f <= 7) {

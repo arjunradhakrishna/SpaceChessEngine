@@ -68,7 +68,7 @@ namespace space {
 		bool isValidResponseToCheck(Move move, bool checkForPins=true) const;
 
 		// Initialization
-		static std::unique_ptr<CBoard> fromFen(const Fen& fen);
+		static Ptr fromFen(const Fen& fen);
 		static std::unique_ptr<CBoard> startPosition();
 		std::string attackString() const;
 

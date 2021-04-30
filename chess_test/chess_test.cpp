@@ -3,6 +3,7 @@
 #include <chess/board_impl.h>
 #include <chess/fen.h>
 #include <chess/pgn.h>
+#include <chess/debug.h>
 #include <chess/counting_board.h>
 #include <algo_linear/algoLinear.h>
 #include <fstream>
@@ -41,9 +42,15 @@ namespace test_utils {
 	}
 
 	void validate_game_moves(space::Game& game) {
-		auto board = space::BoardImpl::fromFen(game.starting_position);
+		auto board = space::CBoard::fromFen(game.starting_position);
+		space::debug << board->as_string(true, true) << std::endl;
+		space::debug << static_cast<space::CBoard*>(board.get())->attackString() << std::endl;
 
 		for (auto ply : game.plies) {
+			space::debug << ply.move_number
+			          << (ply.color == space::Color::White ? ". " : "... ")
+			          << ply.move
+			          << std::endl;
 			test_utils::validate_ply(ply);
 
 			auto move = ply.to_move(board.get());
@@ -53,20 +60,23 @@ namespace test_utils {
 			ASSERT_TRUE(board_opt.has_value());
 			board = board_opt.value();
 
+			space::debug << board->as_string(true, true) << std::endl;
+			space::debug << static_cast<space::CBoard*>(board.get())->attackString() << std::endl;
+
 			auto opp_color = ply.color == space::Color::White
 				? space::Color::Black
 				: space::Color::White;
 			auto board_in_check = board->isUnderCheck(opp_color);
 			ASSERT_EQ(board_in_check, ply.is_check);
 
-
-			auto board_in_checkmate = board->isCheckMate();
-			auto move_is_checkmate = ply.is_checkmate;
-			ASSERT_EQ(board_in_checkmate, ply.is_checkmate);
+			// auto board_in_checkmate = board->isCheckMate();
+			// auto move_is_checkmate = ply.is_checkmate;
+			// ASSERT_EQ(board_in_checkmate, ply.is_checkmate);
 		}
 	}
 }
 
+/*
 TEST(BoardSuite, StartingBoardTest) {
 	using namespace space;
 	IBoard::Ptr startingBoard = BoardImpl::getStartingBoard();
@@ -116,6 +126,7 @@ TEST(BoardSuite, BoardUpdateTest) {
 
 
 }
+*/
 
 TEST(BoardSuite, BoardMovesTest) {
 	using namespace space;
@@ -143,6 +154,7 @@ TEST(BoardSuite, BoardMovesTest) {
 	}
 	ASSERT_GT(bc3.size(), 0);
 */
+/*
 	std::string arabianFen = "7k/7R/4KN2/8/8/8/8/8 w - - 2 3";
 	auto arabian = BoardImpl::fromFen(arabianFen);
 	auto bd = arabian->getValidMoves();
@@ -152,11 +164,13 @@ TEST(BoardSuite, BoardMovesTest) {
 
 	ASSERT_GT(bd2.size(), 0);
 //	Fen::moves2string(arabian, bd);
+*/
 
 
 
 }
 
+/*
 TEST(BoardSuite, FenEnpassantablePawnTest) {
 	using namespace space;
 
@@ -245,8 +259,8 @@ TEST(AlgoSuite, AlgoLinearTest) {
 
 
 }
+*/
 
-/*
 TEST(BoardSuite, PGNParseTest) {
 	using namespace space;
 
@@ -254,7 +268,7 @@ TEST(BoardSuite, PGNParseTest) {
 		"games/lichess_db_standard_rated_2013-01.pgn",
 		std::ios_base::in
 	);
-	auto games = PGN::parse_all(f);
+	auto games = PGN::parse_many(f, 1);
 	f.close();
 
 	for (auto& game : games) {
@@ -262,6 +276,7 @@ TEST(BoardSuite, PGNParseTest) {
 	}
 }
 
+/*
 TEST(BoardSuite, PGNParseFromPositionTest) {
 	using namespace space;
 
@@ -275,6 +290,7 @@ TEST(BoardSuite, PGNParseFromPositionTest) {
 }
 */
 
+/*
 TEST(CBoardSuite, Initialization) {
 	using namespace space;
 
@@ -289,3 +305,4 @@ TEST(CBoardSuite, Initialization) {
 	std::cout << board->as_string(true, true) << std::endl;
 	std::cout << board->attackString() << std::endl;
 }
+*/
