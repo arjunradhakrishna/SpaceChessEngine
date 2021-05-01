@@ -1,17 +1,16 @@
-#include "test_positions.h"
-
-#include <gtest/gtest.h>
+#include <algo_linear/algo_dumbo.h>
+#include <algo_linear/algoLinear.h>
 #include <chess/board.h>
 #include <chess/board_impl.h>
+#include <chess/counting_board.h>
+#include <chess/debug.h>
 #include <chess/fen.h>
 #include <chess/pgn.h>
-#include <chess/debug.h>
-#include <chess/counting_board.h>
-#include <algo_linear/algoLinear.h>
-#include <fstream>
-#include <sstream>
 #include <filesystem>
-#include <algo_linear/algo_dumbo.h>
+#include <fstream>
+#include <gtest/gtest.h>
+#include <sstream>
+#include "test_positions.h"
 
 
 namespace test_utils {
@@ -157,6 +156,7 @@ TEST(BoardSuite, BoardMovesTest) {
 	}
 	ASSERT_GT(bc3.size(), 0);
 */
+
 /*
 	std::string arabianFen = "7k/7R/4KN2/8/8/8/8/8 w - - 2 3";
 	auto arabian = BoardImpl::fromFen(arabianFen);
@@ -168,8 +168,6 @@ TEST(BoardSuite, BoardMovesTest) {
 	ASSERT_GT(bd2.size(), 0);
 //	Fen::moves2string(arabian, bd);
 */
-
-
 
 }
 
@@ -298,9 +296,11 @@ TEST(BoardSuite, PGNParseTest) {
 		std::ios_base::in
 	);
 	auto games = PGN::parse_many(f, 100);
+	auto games = PGN::parse_all(f);
 	f.close();
 
 	for (auto& game : games) {
+		std::cout << "Validating: " << game.metadata["Site"] << std::endl;
 		test_utils::validate_game_moves(game);
 	}
 }
@@ -331,4 +331,3 @@ TEST(CBoardSuite, Initialization) {
 	std::cout << board->as_string(true, true) << std::endl;
 	std::cout << board->attackString() << std::endl;
 }
-

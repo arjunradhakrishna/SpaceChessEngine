@@ -13,7 +13,6 @@ namespace {
 			case PieceType::King  : return 'K';
 			case PieceType::Queen : return 'Q';
 			case PieceType::Pawn  : return 'P';
-			case PieceType::EnPassantCapturablePawn  : return 'P';
 			default               : return '-';
 		}
 	}
@@ -28,7 +27,6 @@ namespace {
 				case PieceType::Bishop: return "\u2657";
 				case PieceType::Knight: return "\u2658";
 				case PieceType::Pawn: return "\u2659";
-				case PieceType::EnPassantCapturablePawn: return "\u2659";
 			}
 		}
 		else {
@@ -39,7 +37,6 @@ namespace {
 				case PieceType::Bishop: return "\u265d";
 				case PieceType::Knight: return "\u265e";
 				case PieceType::Pawn: return "\u265f";
-				case PieceType::EnPassantCapturablePawn: return "\u265f";
 			}
 		}
 
@@ -50,8 +47,6 @@ namespace {
 	inline char pieceTypeToChar(space::PieceType pieceType) {
 		switch (pieceType) {
 		case space::PieceType::Pawn:
-			return 'p';
-		case space::PieceType::EnPassantCapturablePawn:
 			return 'p';
 		case space::PieceType::Rook:
 			return 'r';

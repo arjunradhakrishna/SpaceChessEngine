@@ -11,9 +11,6 @@ namespace space {
 	// ease array indexing.
 	enum class Color { White = 0, Black = 1 };
 	inline static Color oppositeColor(Color c) { return (Color)(1 - (int)c); }
-
-	enum class PieceType { Pawn, EnPassantCapturablePawn, Rook, Knight, Bishop, Queen, King, None };
-	enum class Color { White, Black };
 	enum class PieceType { Pawn, Rook, Knight, Bishop, Queen, King, None };
 	struct Position {
 		int rank;

@@ -876,42 +876,6 @@ namespace space {
 		return moves;
 	}
 
-	std::string BoardImpl::as_string(
-			bool terminal_colors,
-			bool unicode_pieces,
-			Color perspective
-	) const {
-		if (!terminal_colors)
-			return board_as_plain_string(*this, unicode_pieces, perspective);
-		int start = perspective == Color::White ? 7 : 0;
-		int stop = perspective == Color::White ? -1 : 8;
-		int step = start > stop ? -1 : 1;
-
-		auto white_square = terminal_colors ? "\u001b[47m" : "";
-		auto black_square = terminal_colors ? "\u001b[45m" : "";
-		auto reset = "\u001b[0m";
-
-		std::stringstream ss;
-		for (int rank = start; rank != stop; rank += step) {
-			ss << " " << (rank + 1) << " ";
-			for (int file = 7 - start; file != 7 - stop; file -= step) {
-				auto square_color = (rank + file) % 2;
-				ss << (square_color == 1 ? white_square : black_square);
-
-				auto piece = m_pieces[rank][file];
-				if (unicode_pieces) {
-					ss << "\u001b[30m" << piece_to_unicode(piece);
-				}
-				else {
-					ss << (piece.pieceType != PieceType::None ? pieceToChar(piece) : ' ');
-				}
-				ss << ' ' << reset;
-			}
-			ss << std::endl;
-		}
-		ss << (perspective == Color::White ? "  a b c d e f g h" : "  h g f e d c b a")
-		   << std::endl;
-
 	char Piece::as_char() const {
 		switch (pieceType) {
 			case PieceType::Rook  : return 'R';
@@ -920,7 +884,6 @@ namespace space {
 			case PieceType::King  : return 'K';
 			case PieceType::Queen : return 'Q';
 			case PieceType::Pawn  : return 'P';
-			case PieceType::EnPassantCapturablePawn  : return 'P';
 			default               : return '-';
 		}
 	}

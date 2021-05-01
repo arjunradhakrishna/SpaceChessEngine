@@ -11,7 +11,7 @@ namespace {
 	using namespace space;
 
 	PieceType toPieceType(char c) {
-		// Pawn, EnPessantCapturablePawn, Rook, Knight, Bishop, Queen, King, None
+		// Pawn, Rook, Knight, Bishop, Queen, King, None
 		switch (c)
 		{
 		case 'p':
@@ -384,7 +384,7 @@ namespace space {
 		}
 
 		// Pawns
-		if (piece.pieceType == PieceType::Pawn || piece.pieceType == PieceType::EnPassantCapturablePawn) {
+		if (piece.pieceType == PieceType::Pawn) {
 			auto rdiff = piece.color == Color::White ? 1 : -1;
 			for (auto direction : diagonalDirections) {
 				auto offset = directionToOffset(direction);
@@ -444,13 +444,7 @@ namespace space {
 		if (enpassant != "-") {
 			auto enpassantFile = enpassant[0] - 'a';
 			auto enpassantRank = enpassant[1] - '1';
-
-			if (enpassantRank == 2) {
-				board->pieces[3][enpassantFile].pieceType = PieceType::EnPassantCapturablePawn;
-			}
-			else {
-				board->pieces[4][enpassantFile].pieceType = PieceType::EnPassantCapturablePawn;
-			}
+                        board->enpassantSquare = { enpassantRank, enpassantFile };
 		}
 
 		board->updateUnderAttack();
@@ -469,6 +463,7 @@ namespace space {
 		if (movingPiece.pieceType == PieceType::King) {
 			newBoard->kingPosition[(int)nextMover] = { move.destinationRank, move.destinationFile };
 		}
+                newBoard->enPassantSquare = {};
 
 		auto baseRank = nextMover == Color::White ? 0 : 7;
 		// Update own castling rights.
@@ -509,6 +504,7 @@ namespace space {
 			&& move.sourceFile != move.destinationFile
 			&& pieces[move.destinationRank][move.destinationFile].pieceType == PieceType::None
 		) {
+                        TODO HERE
 			// En passant
 			// Remove captured pawn. Remove capturing pawn. Add capturing pawn.
 			newBoard->removePieceAt({ move.sourceRank, move.sourceFile });
@@ -521,6 +517,9 @@ namespace space {
 				newBoard->removePieceAt({ move.destinationRank, move.destinationFile });
 			}
 			newBoard->addPieceAt(movingPiece, { move.destinationRank, move.destinationFile });
+                        if (movingPiece.pieceType == PieceType::Pawn && abs(move.sourceRank - move.destinationRank) == 2) {
+                                // Pwan 
+                        }
 		}
 		return newBoard;
 	}
@@ -564,7 +563,6 @@ namespace space {
 				if (isUnderAttack({ move.destinationRank, move.destinationFile}, otherColor)) return false;
 				break;
 			case PieceType::Pawn:
-			case PieceType::EnPassantCapturablePawn:
 				auto startRank = nextMover == Color::White ? 1 : 6;
 				auto enpassantRank = nextMover == Color::White ? 4 : 3;
 				// Move in wrong direction
@@ -801,7 +799,7 @@ namespace space {
 		}
 
 		// Pawns
-		if (piece.pieceType == PieceType::Pawn || piece.pieceType == PieceType::EnPassantCapturablePawn) {
+		if (piece.pieceType == PieceType::Pawn) {
 			auto rdiff = piece.color == Color::White ? 1 : -1;
 			for (auto direction : diagonalDirections) {
 				auto offset = directionToOffset(direction);
@@ -823,9 +821,7 @@ namespace space {
 
 				// Pawn or king move?
 				auto adjacentPiece = pieces[position.rank - offset.first][position.file - offset.second];
-				if (adjacentPiece.pieceType == PieceType::King ||
-					adjacentPiece.pieceType == PieceType::Pawn ||
-					adjacentPiece.pieceType == PieceType::EnPassantCapturablePawn) {
+				if (adjacentPiece.pieceType == PieceType::King || adjacentPiece.pieceType == PieceType::Pawn) {
 					continue;
 				}
 
