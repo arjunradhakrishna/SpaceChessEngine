@@ -296,7 +296,7 @@ TEST(BoardSuite, PGNParseTest) {
 		std::ios_base::in
 	);
 	auto games = PGN::parse_many(f, 100);
-	auto games = PGN::parse_all(f);
+	// auto games = PGN::parse_all(f);
 	f.close();
 
 	for (auto& game : games) {
@@ -320,14 +320,14 @@ TEST(BoardSuite, PGNParseFromPositionTest) {
 TEST(CBoardSuite, Initialization) {
 	using namespace space;
 
-	auto board = CBoard::startPosition();
-	std::cout << board->as_string(true, true) << std::endl;
-	std::cout << board->attackString() << std::endl;
+	auto board1 = CBoard::startPosition();
+	std::cout << board1->as_string(true, true) << std::endl;
+	std::cout << board1->attackString() << std::endl;
 
 	std::cout << "------------" << std::endl;
 
 	auto fen = Fen("1qrb4/r3Qp1k/p1R1p1pp/4P3/1P1PBP2/4P1B1/6PP/6K1 w - - 3 33");
-	board = CBoard::fromFen(fen);
-	std::cout << board->as_string(true, true) << std::endl;
-	std::cout << board->attackString() << std::endl;
+	auto board2 = static_cast<CBoard*>(CBoard::fromFen(fen).get());
+	std::cout << board2->as_string(true, true) << std::endl;
+	std::cout << board2->attackString() << std::endl;
 }

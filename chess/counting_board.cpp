@@ -444,7 +444,7 @@ namespace space {
 		if (enpassant != "-") {
 			auto enpassantFile = enpassant[0] - 'a';
 			auto enpassantRank = enpassant[1] - '1';
-                        board->enpassantSquare = { enpassantRank, enpassantFile };
+			board->enPassantSquare = { enpassantRank, enpassantFile };
 		}
 
 		board->updateUnderAttack();
@@ -463,7 +463,7 @@ namespace space {
 		if (movingPiece.pieceType == PieceType::King) {
 			newBoard->kingPosition[(int)nextMover] = { move.destinationRank, move.destinationFile };
 		}
-                newBoard->enPassantSquare = {};
+		newBoard->enPassantSquare = {};
 
 		auto baseRank = nextMover == Color::White ? 0 : 7;
 		// Update own castling rights.
@@ -488,8 +488,13 @@ namespace space {
 			newBoard->castlingRights[(int)otherColor][ShortCastle] = false;
 		}
 
-		if (movingPiece.pieceType == PieceType::King &&
-			abs(move.sourceFile - move.destinationFile) == 2) {
+		// Set en passant square
+		if (movingPiece.pieceType == PieceType::Pawn && abs(move.sourceRank - move.destinationRank) == 2) {
+			auto enPassantRank = nextMover == Color::White ? 2 : 5;
+			newBoard->enPassantSquare = { enPassantRank, move.sourceFile };
+		}
+
+		if (movingPiece.pieceType == PieceType::King && abs(move.sourceFile - move.destinationFile) == 2) {
 			// Castling.
 			// Remove king. Remove rook. Add rook. Add king.
 			auto rookFile = move.destinationFile > move.sourceFile ? 7 : 0;
@@ -504,9 +509,8 @@ namespace space {
 			&& move.sourceFile != move.destinationFile
 			&& pieces[move.destinationRank][move.destinationFile].pieceType == PieceType::None
 		) {
-                        TODO HERE
 			// En passant
-			// Remove captured pawn. Remove capturing pawn. Add capturing pawn.
+			// Remove capturing pawn. Remove captured pawn. Add capturing pawn.
 			newBoard->removePieceAt({ move.sourceRank, move.sourceFile });
 			newBoard->removePieceAt({ move.sourceRank, move.destinationFile });
 			newBoard->addPieceAt({ PieceType::Pawn, nextMover }, { move.destinationRank, move.destinationFile });
@@ -517,9 +521,6 @@ namespace space {
 				newBoard->removePieceAt({ move.destinationRank, move.destinationFile });
 			}
 			newBoard->addPieceAt(movingPiece, { move.destinationRank, move.destinationFile });
-                        if (movingPiece.pieceType == PieceType::Pawn && abs(move.sourceRank - move.destinationRank) == 2) {
-                                // Pwan 
-                        }
 		}
 		return newBoard;
 	}
@@ -564,7 +565,6 @@ namespace space {
 				break;
 			case PieceType::Pawn:
 				auto startRank = nextMover == Color::White ? 1 : 6;
-				auto enpassantRank = nextMover == Color::White ? 4 : 3;
 				// Move in wrong direction
 				if ((move.sourceRank < move.destinationRank) != (nextMover == Color::White)) return false;
 				// Move 1 square
@@ -575,8 +575,9 @@ namespace space {
 				if (fileDiff == 1 && rankDiff == 1 &&
 				    pieces[move.destinationRank][move.destinationFile].pieceType != PieceType::None) break;
 				// Enpassant capture
-				if (fileDiff == 1 && rankDiff == 1 && move.sourceRank == enpassantRank &&
-				    pieces[enpassantRank][move.destinationFile].pieceType == PieceType::EnPassantCapturablePawn) break;
+				if (fileDiff == 1 && rankDiff == 1 && enPassantSquare.has_value() &&
+				    move.destinationRank == enPassantSquare.value().rank &&
+				    move.destinationFile == enPassantSquare.value().file) break;
 				return false;
 		}
 		debug << "Move semantics are correct." << std::endl;
