@@ -17,7 +17,6 @@ namespace space {
 		space_assert(wtsVec.size() == 5,
 			"Need 5 weights for algo");
 		this->weights[PieceType::Pawn] = wtsVec[0];
-		this->weights[PieceType::EnPassantCapturablePawn] = wtsVec[0];
 		this->weights[PieceType::Rook] = wtsVec[1];
 		this->weights[PieceType::Knight] = wtsVec[2];
 		this->weights[PieceType::Bishop] = wtsVec[3];
@@ -78,7 +77,6 @@ namespace space {
 		space_assert(wtsVec.size() == 5, "Need 5 weights");
 		this->breadth = _breadth;
 		this->weights[PieceType::Pawn] = wtsVec[0];
-		this->weights[PieceType::EnPassantCapturablePawn] = wtsVec[0];
 		this->weights[PieceType::Rook] = wtsVec[1];
 		this->weights[PieceType::Knight] = wtsVec[2];
 		this->weights[PieceType::Bishop] = wtsVec[3];
@@ -97,8 +95,7 @@ namespace space {
 				}
 				Piece p = pMaybe.value();
 				int sign = p.color == Color::White ? 1 : -1;
-				if (p.pieceType == PieceType::Pawn || 
-					p.pieceType == PieceType::EnPassantCapturablePawn) {
+				if (p.pieceType == PieceType::Pawn) {
 					s += sign * (1 + this->weights[p.pieceType] * (sign == 1 ? (i - 1) : (6 - i)));
 				}
 				else {

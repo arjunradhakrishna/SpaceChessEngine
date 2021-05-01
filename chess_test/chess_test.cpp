@@ -1,3 +1,5 @@
+#include "test_positions.h"
+
 #include <gtest/gtest.h>
 #include <chess/board.h>
 #include <chess/board_impl.h>
@@ -9,6 +11,8 @@
 #include <fstream>
 #include <sstream>
 #include <filesystem>
+#include <algo_linear/algo_dumbo.h>
+
 
 namespace test_utils {
 	void validate_ply(space::Ply ply) {
@@ -77,7 +81,6 @@ namespace test_utils {
 	}
 }
 
-/*
 TEST(BoardSuite, StartingBoardTest) {
 	using namespace space;
 	IBoard::Ptr startingBoard = BoardImpl::getStartingBoard();
@@ -127,7 +130,6 @@ TEST(BoardSuite, BoardUpdateTest) {
 
 
 }
-*/
 
 TEST(BoardSuite, BoardMovesTest) {
 	using namespace space;
@@ -171,21 +173,48 @@ TEST(BoardSuite, BoardMovesTest) {
 
 }
 
-/*
+TEST(BoardSuite, TestMoveLibraries)
+{
+	auto testPositions = space::getAllTestPositions();
+	for (auto tp: testPositions)
+	{
+		auto board = space::BoardImpl::fromFen(tp->position);
+		auto validMoves = board->getValidMoves();
+		const auto & expectedValidMoves = tp->moveMap;
+		ASSERT_EQ(validMoves.size(), expectedValidMoves.size());
+		for (auto & mxb: validMoves)
+		{
+			std::stringstream movess;
+			movess << "{ "
+				<< mxb.first.sourceRank << ", " 
+				<< mxb.first.sourceFile << ", "
+				<< mxb.first.destinationRank << ", "
+				<< mxb.first.destinationFile << "}";
+			auto evmIt = expectedValidMoves.find(mxb.first);
+			ASSERT_TRUE(evmIt != expectedValidMoves.end()) 
+				<< "Board presented unexpected move " << movess.str();
+			const auto & expectedBoardFen = evmIt->second;
+			auto boardFen = space::Fen::fromBoard(mxb.second, 1, 1).fen;
+			ASSERT_EQ(boardFen, expectedBoardFen) 
+				<< "Unexpected board via move " << movess.str();
+		}
+	}
+}
+
 TEST(BoardSuite, FenEnpassantablePawnTest) {
 	using namespace space;
 
 	auto fen = Fen("2rr2k1/p5pb/7p/1p5P/KPq3P1/8/8/8 w - b6 0 38");
 	auto board = BoardImpl::fromFen(fen);
-	auto piece_on_b5 = board->getPiece(Position(4, 1));
-	ASSERT_TRUE(piece_on_b5.has_value());
-	ASSERT_EQ(piece_on_b5.value().pieceType, PieceType::EnPassantCapturablePawn);
+	ASSERT_TRUE(board->enPassantSquare.has_value());
+	ASSERT_EQ(board->enPassantSquare.value().rank, 5);
+	ASSERT_EQ(board->enPassantSquare.value().file, 1);
 
 	fen = Fen("2rr2k1/p5pb/7p/1p5P/1Pp2qP1/K7/8/8 b - b3 0 1");
 	board = BoardImpl::fromFen(fen);
-	auto piece_on_b4 = board->getPiece(Position(3, 1));
-	ASSERT_TRUE(piece_on_b4.has_value());
-	ASSERT_EQ(piece_on_b4.value().pieceType, PieceType::EnPassantCapturablePawn);
+	ASSERT_TRUE(board->enPassantSquare.has_value());
+	ASSERT_EQ(board->enPassantSquare.value().rank, 2);
+	ASSERT_EQ(board->enPassantSquare.value().file, 1);
 }
 
 TEST(BoardSuite, EnpassantablePawnCheckTest) {
@@ -193,9 +222,9 @@ TEST(BoardSuite, EnpassantablePawnCheckTest) {
 
 	auto fen = Fen("2rr2k1/p5pb/7p/1p5P/KPq3P1/8/8/8 w - b6 0 38");
 	auto board = BoardImpl::fromFen(fen);
-	auto piece_on_b5 = board->getPiece(Position(4, 1));
-	ASSERT_TRUE(piece_on_b5.has_value());
-	ASSERT_EQ(piece_on_b5.value().pieceType, PieceType::EnPassantCapturablePawn);
+	ASSERT_TRUE(board->enPassantSquare.has_value());
+	ASSERT_EQ(board->enPassantSquare.value().rank, 5);
+	ASSERT_EQ(board->enPassantSquare.value().file, 1);
 
 	ASSERT_TRUE(board->isUnderCheck(Color::White));
 }
@@ -243,7 +272,7 @@ TEST(AlgoSuite, AlgoLinearTest) {
 	Fen boardfen = Fen("8/8/2kq1r2/8/2KBNR2/8/8/8 b - - 0 0");
 	auto b0 = BoardImpl::fromFen(boardfen);
 
-    //auto aa = AlgoLinearDepthOne(wts01);
+	//auto aa = AlgoLinearDepthOne(wts01);
 	auto aa = AlgoLinearDepthTwoExt(5, wts01);
 
 	Move m0 = aa.getNextMove(b0);
@@ -260,7 +289,6 @@ TEST(AlgoSuite, AlgoLinearTest) {
 
 
 }
-*/
 
 TEST(BoardSuite, PGNParseTest) {
 	using namespace space;
@@ -277,7 +305,6 @@ TEST(BoardSuite, PGNParseTest) {
 	}
 }
 
-/*
 TEST(BoardSuite, PGNParseFromPositionTest) {
 	using namespace space;
 
@@ -289,9 +316,7 @@ TEST(BoardSuite, PGNParseFromPositionTest) {
 	f.close();
 	test_utils::validate_game_moves(*game);
 }
-*/
 
-/*
 TEST(CBoardSuite, Initialization) {
 	using namespace space;
 
@@ -306,4 +331,4 @@ TEST(CBoardSuite, Initialization) {
 	std::cout << board->as_string(true, true) << std::endl;
 	std::cout << board->attackString() << std::endl;
 }
-*/
+

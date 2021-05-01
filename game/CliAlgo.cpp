@@ -89,8 +89,6 @@ namespace {
 		{
 		case space::PieceType::Pawn:
 			return 'p';
-		case space::PieceType::EnPassantCapturablePawn:
-			return 'p';
 		case space::PieceType::Rook:
 			return 'r';
 		case space::PieceType::Knight:

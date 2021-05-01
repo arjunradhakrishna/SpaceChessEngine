@@ -12,7 +12,7 @@ namespace {
 	space::PieceType toPieceType(char c)
 	{
 		using namespace space;
-		// Pawn, EnPessantCapturablePawn, Rook, Knight, Bishop, Queen, King, None
+		// Pawn, Rook, Knight, Bishop, Queen, King, None
 		switch (c)
 		{
 		case 'p':
@@ -36,6 +36,102 @@ namespace {
 		default:
 			throw std::runtime_error(std::string("Unrecognizable piece type '") + c + "'");
 		}
+	}
+
+	std::string piece_to_unicode(const space::Piece& piece) {
+		using namespace space;
+		if (piece.color == Color::White) {
+			switch (piece.pieceType) {
+				case PieceType::King: return "\u2654";
+				case PieceType::Queen: return "\u2655";
+				case PieceType::Rook: return "\u2656";
+				case PieceType::Bishop: return "\u2657";
+				case PieceType::Knight: return "\u2658";
+				case PieceType::Pawn: return "\u2659";
+			}
+		}
+		else {
+			switch (piece.pieceType) {
+				case PieceType::King: return "\u265a";
+				case PieceType::Queen: return "\u265b";
+				case PieceType::Rook: return "\u265c";
+				case PieceType::Bishop: return "\u265d";
+				case PieceType::Knight: return "\u265e";
+				case PieceType::Pawn: return "\u265f";
+			}
+		}
+
+		// PieceType::None
+		return " ";
+	}
+
+	inline char pieceTypeToChar(space::PieceType pieceType)
+	{
+		switch (pieceType)
+		{
+		case space::PieceType::Pawn:
+			return 'p';
+		case space::PieceType::Rook:
+			return 'r';
+		case space::PieceType::Knight:
+			return 'n';
+		case space::PieceType::Bishop:
+			return 'b';
+		case space::PieceType::Queen:
+			return 'q';
+		case space::PieceType::King:
+			return 'k';
+		case space::PieceType::None:
+			throw std::runtime_error("Cannot convert piece type 'None' to text");
+		default:
+			throw std::runtime_error("pieceType " + std::to_string(static_cast<int>(pieceType)) + " not recognized.");
+		}
+	}
+
+	char pieceToChar(space::Piece piece) {
+
+		char result = pieceTypeToChar(piece.pieceType);
+		if (piece.color == space::Color::White)
+			result = result + 'A' - 'a';
+		return result;
+	}
+
+	std::string board_as_plain_string(
+		const space::IBoard& board,
+		bool unicode_pieces,
+		space::Color perspective)
+	{
+		std::stringstream out;
+		out << "  |  a  b  c  d  e  f  g  h  |\n"
+			<< "--+--------------------------+--\n";
+		for (int rank = 7; rank >= 0; --rank)
+		{
+			out << (rank + 1) << " |  ";
+			for (int file = 0; file < 8; ++file)
+			{
+				auto piece = board.getPiece({ rank, file });
+				if (piece.has_value()) {
+					if (unicode_pieces) {
+						out << piece_to_unicode(piece.value()) << "  ";
+					}
+					else {
+						auto c = piece.value().pieceType != space::PieceType::None
+						    ? pieceToChar(piece.value())
+							: ' ';
+						out << c << "  ";
+					}
+				}
+				else {
+					out << ".  ";
+				}
+			}
+			out << "| " << (rank + 1) << "\n";
+			if (rank > 0)
+				out << "  |                          |  \n";
+		}
+		out << "--+--------------------------+--\n"
+			<< "  |  a  b  c  d  e  f  g  h  |\n\n";
+		return out.str();
 	}
 } // end anonymous namespace
 
@@ -162,6 +258,7 @@ namespace space {
 		newBoard->m_canBlackCastleLeft = this->m_canBlackCastleLeft;
 		newBoard->m_canBlackCastleRight = this->m_canBlackCastleRight;
 		newBoard->m_whoPlaysNext = this->getColor(false);
+		newBoard->enPassantSquare = {};
 
 		Piece pSource = this->m_pieces[move.sourceRank][move.sourceFile];
 		Piece& pSourceNew = newBoard->m_pieces[move.sourceRank][move.sourceFile];
@@ -259,11 +356,12 @@ namespace space {
 				if (move.sourceRank == 1 && move.destinationRank == 3) {  // double move
 					space_assert(this->m_pieces[2][move.sourceFile].pieceType == PieceType::None,
 						"White Pawn double move blocked");
-					pTargetNew.pieceType = PieceType::EnPassantCapturablePawn;
+					pTargetNew.pieceType = PieceType::Pawn;
+					newBoard->enPassantSquare = { 2, move.sourceFile };
 				}
-				else if (move.sourceRank == 4 &&
-					newBoard->m_pieces[move.sourceRank][move.destinationFile].pieceType
-							== PieceType::EnPassantCapturablePawn){
+				else if (move.sourceRank == 4 && enPassantSquare.has_value()
+				      && move.destinationRank == enPassantSquare.value().rank
+					  && move.destinationFile == enPassantSquare.value().file) {
 					newBoard->m_pieces[move.sourceRank][move.destinationFile].pieceType
 						= PieceType::None;    // En passant capture
 				}
@@ -272,11 +370,12 @@ namespace space {
 				if (move.sourceRank == 6 && move.destinationRank == 4) {  // double move
 					space_assert(this->m_pieces[5][move.sourceFile].pieceType == PieceType::None,
 						"Black Pawn double move blocked");
-					pTargetNew.pieceType = PieceType::EnPassantCapturablePawn;
+					pTargetNew.pieceType = PieceType::Pawn;
+					newBoard->enPassantSquare = { 5, move.sourceFile };
 				}
-				else if (move.sourceRank == 3 &&
-					newBoard->m_pieces[move.sourceRank][move.destinationFile].pieceType
-					== PieceType::EnPassantCapturablePawn) {
+				else if (move.sourceRank == 3 && enPassantSquare.has_value()
+				      && move.destinationRank == enPassantSquare.value().rank
+					  && move.destinationFile == enPassantSquare.value().file) {
 					newBoard->m_pieces[move.sourceRank][move.destinationFile].pieceType
 						= PieceType::None;    // En passant capture
 				}
@@ -289,11 +388,6 @@ namespace space {
 			break;
 		}
 
-		int enPassantRow = pSource.color == Color::White ? 4 : 3; // en passant update
-		for (int j = 0; j < 8; j++) {
-			if (newBoard->m_pieces[enPassantRow][j].pieceType == PieceType::EnPassantCapturablePawn)
-				newBoard->m_pieces[enPassantRow][j].pieceType = PieceType::Pawn;
-		}
 		return newBoard;
 	}
 
@@ -326,7 +420,6 @@ namespace space {
 					continue;
 			}
 			movesMap[m] = newBoard;
-
 		}
 		return movesMap;
 	}
@@ -465,20 +558,42 @@ namespace space {
 				rank = c - '1';
 			else
 				throw std::runtime_error(std::string("Expecting a digit from 1 to 8, got '") + c + "'");
-			if (board->m_whoPlaysNext == Color::Black)
-				rank += 1;
-			else
-				rank -= 1;
+			int pawnRank = board->m_whoPlaysNext == Color::White ? 4 : 3;
 			space_assert(
-				board->m_pieces[rank][file].pieceType == PieceType::Pawn,
+				board->m_pieces[pawnRank][file].pieceType == PieceType::Pawn,
 				"En passant capture square does not have a pawn in front of it."
 			);
-			board->m_pieces[rank][file].pieceType = PieceType::EnPassantCapturablePawn;
+			board->enPassantSquare = { rank, file };
 		}
-		else if (c != '-') throw std::runtime_error(std::string("Expecting 'a'-'h' or '-', got '") + c + "'");
+		else if (c == '-') {
+			board->enPassantSquare = {};
+		}
+		else {
+			throw std::runtime_error(std::string("Expecting 'a'-'h' or '-', got '") + c + "'");
+		}
 
 		return board;
 	}
+
+
+	BoardImpl::BoardImpl() {}
+
+
+	BoardImpl::BoardImpl(
+			const std::array<std::array<Piece, 8>, 8> & pieces,
+			bool canWhiteCastleLeft,
+			bool canWhiteCastleRight,
+			bool canBlackCastleLeft,
+			bool canBlackCastleRight,
+			Color whoPlaysNext):
+		m_pieces(pieces),
+		m_canWhiteCastleLeft(canWhiteCastleLeft),
+		m_canWhiteCastleRight(canWhiteCastleRight),
+		m_canBlackCastleLeft(canBlackCastleLeft),
+		m_canBlackCastleRight(canBlackCastleRight),
+		m_whoPlaysNext(whoPlaysNext)
+	{ }
+
 
 	// In this we check for obstructions, returns true if no obstructions
 	bool BoardImpl::checkObstructions(Move m) const
@@ -492,7 +607,7 @@ namespace space {
 		PieceType pType = pMove.pieceType;
 		Color c = pMove.color;
 
-		if (pType == PieceType::Pawn || pType == PieceType::EnPassantCapturablePawn) {
+		if (pType == PieceType::Pawn) {
 			return true;
 		}
 		
@@ -604,9 +719,7 @@ namespace space {
 				auto pawn_file = file_offset + file;
 				if (pawn_file < 0 || pawn_file > 7) continue;
 				auto pawn = m_pieces[pawn_rank][pawn_file];
-				if ((pawn.pieceType == PieceType::Pawn
-					|| pawn.pieceType == PieceType::EnPassantCapturablePawn)
-					&& pawn.color == oppColor) return true;
+				if (pawn.pieceType == PieceType::Pawn && pawn.color == oppColor) return true;
 			}
 		}
 		return false;
@@ -703,7 +816,7 @@ namespace space {
 		}
 
 		// for pawns, we examine for obstruction and capture rules here
-		if (t == PieceType::Pawn || t == PieceType::EnPassantCapturablePawn)
+		if (t == PieceType::Pawn)
 		{
 			int direction = (c == Color::White ? 1 : -1);
 
@@ -739,20 +852,10 @@ namespace space {
 			}
 		
 			// en passant pawn capture
-
-			if (rank == (direction == 1 ? 4 : 3))
-			{
-				for (int j = -1; j <= 1; j += 2) {
-					if (inRange(file + j))
-					{
-						Piece pCapture = this->m_pieces[rank][file + j];
-						if (pCapture.pieceType == PieceType::EnPassantCapturablePawn &&
-							pCapture.color != c)
-						{
-							moves.push_back({ rank, file, rank + direction, file + j });
-						}
-					}
-				}
+			auto enPassantRank = direction == 1 ? 4 : 3;
+			if (t == PieceType::Pawn && enPassantSquare.has_value() &&
+				rank == enPassantRank && abs(file - enPassantSquare.value().file) == 1) {
+				moves.push_back({ rank, file, enPassantSquare.value().rank, enPassantSquare.value().file});
 			}
 		}
 
@@ -772,6 +875,42 @@ namespace space {
 
 		return moves;
 	}
+
+	std::string BoardImpl::as_string(
+			bool terminal_colors,
+			bool unicode_pieces,
+			Color perspective
+	) const {
+		if (!terminal_colors)
+			return board_as_plain_string(*this, unicode_pieces, perspective);
+		int start = perspective == Color::White ? 7 : 0;
+		int stop = perspective == Color::White ? -1 : 8;
+		int step = start > stop ? -1 : 1;
+
+		auto white_square = terminal_colors ? "\u001b[47m" : "";
+		auto black_square = terminal_colors ? "\u001b[45m" : "";
+		auto reset = "\u001b[0m";
+
+		std::stringstream ss;
+		for (int rank = start; rank != stop; rank += step) {
+			ss << " " << (rank + 1) << " ";
+			for (int file = 7 - start; file != 7 - stop; file -= step) {
+				auto square_color = (rank + file) % 2;
+				ss << (square_color == 1 ? white_square : black_square);
+
+				auto piece = m_pieces[rank][file];
+				if (unicode_pieces) {
+					ss << "\u001b[30m" << piece_to_unicode(piece);
+				}
+				else {
+					ss << (piece.pieceType != PieceType::None ? pieceToChar(piece) : ' ');
+				}
+				ss << ' ' << reset;
+			}
+			ss << std::endl;
+		}
+		ss << (perspective == Color::White ? "  a b c d e f g h" : "  h g f e d c b a")
+		   << std::endl;
 
 	char Piece::as_char() const {
 		switch (pieceType) {

@@ -48,8 +48,6 @@ project ("SpaceChessEngine")
 
 
 # Include sub-projects.
-add_subdirectory ("SpaceChessEngine")
-
 add_subdirectory ("common")
 add_subdirectory ("chess")
 add_subdirectory ("game")

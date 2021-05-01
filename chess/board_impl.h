@@ -28,6 +28,16 @@ namespace space {
 		static Ptr getStartingBoard();
 		static Ptr fromFen(const Fen& fen);
 
+		BoardImpl();
+		BoardImpl(
+				const std::array<std::array<Piece, 8>, 8> & pieces,
+				bool canWhiteCastleLeft,
+				bool canWhiteCastleRight,
+				bool canBlackCastleLeft,
+				bool canBlackCastleRight,
+				Color whoPlaysNext);
+
+
 	private:
 		std::array<std::array<Piece, 8>, 8> m_pieces;
 		bool m_canWhiteCastleLeft;

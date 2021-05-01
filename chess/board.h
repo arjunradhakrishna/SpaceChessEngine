@@ -4,6 +4,7 @@
 #include <string>
 #include <optional>
 #include <map>
+#include <sstream>
 
 namespace space {
 	// Very tempted to make this a non class enum to
@@ -12,6 +13,8 @@ namespace space {
 	inline static Color oppositeColor(Color c) { return (Color)(1 - (int)c); }
 
 	enum class PieceType { Pawn, EnPassantCapturablePawn, Rook, Knight, Bishop, Queen, King, None };
+	enum class Color { White, Black };
+	enum class PieceType { Pawn, Rook, Knight, Bishop, Queen, King, None };
 	struct Position {
 		int rank;
 		int file;
@@ -29,6 +32,13 @@ namespace space {
 		Move(int v_sourceRank, int v_sourceFile, int v_destinationRank, int v_destinationFile, PieceType v_promotedPiece = PieceType::None) :
 			sourceRank(v_sourceRank), sourceFile(v_sourceFile), destinationRank(v_destinationRank), destinationFile(v_destinationFile), promotedPiece(v_promotedPiece)
 		{}
+		inline std::string as_string() const {
+			std::stringstream ss;
+			ss << (char)('a' + sourceFile) << (sourceRank + 1)
+			   << " -> "
+			   << (char)('a' + destinationFile) << (destinationRank + 1);
+			return ss.str();
+		}
 		bool operator <(const Move& that) const;
 	};
 	struct Piece {
@@ -42,6 +52,8 @@ namespace space {
 		using MoveMap = std::map<Move, Ptr>;
 		virtual Color whoPlaysNext() const = 0;
 		virtual std::optional<Piece> getPiece(Position position) const = 0;
+
+		std::optional<Position> enPassantSquare;
 
 		// (Left and right from that player's point of view)
 		virtual bool canCastleLeft(Color color) const = 0;

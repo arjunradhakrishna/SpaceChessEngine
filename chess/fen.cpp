@@ -8,13 +8,10 @@ namespace {
 	char pieceToChar(space::Piece piece)
 	{
 		char result;
-		// Pawn, EnPessantCapturablePawn, Rook, Knight, Bishop, Queen, King, None
+		// Pawn, EnPassantCapturablePawn, Rook, Knight, Bishop, Queen, King, None
 		switch (piece.pieceType)
 		{
 		case space::PieceType::Pawn:
-			result = 'P';
-			break;
-		case space::PieceType::EnPassantCapturablePawn:
 			result = 'P';
 			break;
 		case space::PieceType::Rook:
@@ -49,7 +46,7 @@ namespace space {
 	Fen Fen::fromBoard(const IBoard::Ptr& board, int halfMoveClock, int fullMoves)
 	{
 		std::stringstream result;
-		std::optional<Position> enPessantPosition;
+		std::optional<Position> enPassantPosition = board->enPassantSquare;
 		for (int rank = 7; rank >= 0; --rank)
 		{
 			Position pos(rank, 1);
@@ -68,15 +65,6 @@ namespace space {
 					skip = 0;
 					auto piece = *optPiece;
 					result << pieceToChar(piece);
-
-					if (piece.pieceType == PieceType::EnPassantCapturablePawn)
-					{
-						enPessantPosition = pos;
-						if (piece.color == Color::Black)
-							++(enPessantPosition->rank);
-						else
-							--(enPessantPosition->rank);
-					}
 				}
 			}
 			if (skip > 0) result << skip;
@@ -95,12 +83,12 @@ namespace space {
 		if (!canCastle) result << '-';
 
 		result << ' ';
-		if (!enPessantPosition)
+		if (!enPassantPosition)
 			result << '-';
 		else
 		{
-			result << ('a' + static_cast<char>(enPessantPosition->rank));
-			result << enPessantPosition->file;
+			result << static_cast<char>('a' + enPassantPosition->file);
+			result << (enPassantPosition->rank + 1);
 		}
 
 		result << ' ' << halfMoveClock << ' ' << fullMoves;
