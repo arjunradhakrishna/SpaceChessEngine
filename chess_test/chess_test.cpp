@@ -80,6 +80,7 @@ namespace test_utils {
 	}
 }
 
+/*
 TEST(BoardSuite, StartingBoardTest) {
 	using namespace space;
 	IBoard::Ptr startingBoard = BoardImpl::getStartingBoard();
@@ -129,6 +130,7 @@ TEST(BoardSuite, BoardUpdateTest) {
 
 
 }
+*/
 
 TEST(BoardSuite, BoardMovesTest) {
 	using namespace space;
@@ -171,6 +173,7 @@ TEST(BoardSuite, BoardMovesTest) {
 
 }
 
+/*
 TEST(BoardSuite, TestMoveLibraries)
 {
 	auto testPositions = space::getAllTestPositions();
@@ -304,6 +307,7 @@ TEST(BoardSuite, PGNParseTest) {
 		test_utils::validate_game_moves(game);
 	}
 }
+*/
 
 TEST(BoardSuite, PGNParseFromPositionTest) {
 	using namespace space;
@@ -317,17 +321,19 @@ TEST(BoardSuite, PGNParseFromPositionTest) {
 	test_utils::validate_game_moves(*game);
 }
 
+/*
 TEST(CBoardSuite, Initialization) {
 	using namespace space;
 
 	auto board1 = CBoard::startPosition();
-	std::cout << board1->as_string(true, true) << std::endl;
-	std::cout << board1->attackString() << std::endl;
+	debug << board1->as_string(true, true) << std::endl;
+	debug << board1->attackString() << std::endl;
 
-	std::cout << "------------" << std::endl;
+	debug << "------------" << std::endl;
 
 	auto fen = Fen("1qrb4/r3Qp1k/p1R1p1pp/4P3/1P1PBP2/4P1B1/6PP/6K1 w - - 3 33");
-	auto board2 = static_cast<CBoard*>(CBoard::fromFen(fen).get());
-	std::cout << board2->as_string(true, true) << std::endl;
-	std::cout << board2->attackString() << std::endl;
+	auto board2 = (CBoard&)*CBoard::fromFen(fen);
+	debug << board2.as_string(true, true) << std::endl;
+	debug << board2.attackString() << std::endl;
 }
+*/
