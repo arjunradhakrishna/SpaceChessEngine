@@ -51,9 +51,9 @@ namespace test_utils {
 
 		for (auto ply : game.plies) {
 			// space::debug << ply.move_number
-			          // << (ply.color == space::Color::White ? ". " : "... ")
-			          // << ply.move
-			          // << std::endl;
+			        //   << (ply.color == space::Color::White ? ". " : "... ")
+			        //   << ply.move
+			        //   << std::endl;
 			test_utils::validate_ply(ply);
 
 			auto move = ply.to_move(board.get());
@@ -72,9 +72,9 @@ namespace test_utils {
 			auto board_in_check = board->isUnderCheck(opp_color);
 			ASSERT_EQ(board_in_check, ply.is_check);
 
-			// auto board_in_checkmate = board->isCheckMate();
-			// auto move_is_checkmate = ply.is_checkmate;
-			// ASSERT_EQ(board_in_checkmate, ply.is_checkmate);
+			auto board_in_checkmate = board->isCheckMate();
+			auto move_is_checkmate = ply.is_checkmate;
+			ASSERT_EQ(board_in_checkmate, ply.is_checkmate);
 		}
 	}
 }
@@ -298,12 +298,12 @@ TEST(BoardSuite, PGNParseTest) {
 		"games/lichess_db_standard_rated_2013-01.pgn",
 		std::ios_base::in
 	);
-	// auto games = PGN::parse_many(f, 1000);
+	// auto games = PGN::parse_many(f, 10000);
 	auto games = PGN::parse_all(f);
 	f.close();
 
 	for (auto& game : games) {
-		// if (game.metadata["Site"] !=  "https://lichess.org/tq5hk5pt") continue;
+		// if (game.metadata["Site"] !=  "https://lichess.org/hnahj9kz") continue;
 		// std::cout << "Validating: " << game.metadata["Site"] << std::endl;
 		test_utils::validate_game_moves(game);
 	}

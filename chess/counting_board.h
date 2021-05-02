@@ -58,7 +58,7 @@ namespace space {
 	public:
 		// Game state
 		bool isStaleMate() const override {}
-		bool isCheckMate() const override {}
+		bool isCheckMate() const override;
 
 		// Moves and updates
 		std::optional<Ptr> updateBoard(Move move) const override;
@@ -76,7 +76,11 @@ namespace space {
 		std::unique_ptr<CBoard> clone() const;
 		inline bool isUnderAttack(Position position, Color attackingColor) const;
 		inline bool isUnderAttackFromDirection(Position position, Color attackingColor, Direction direction) const;
+		inline bool isUnderAttackFromKnightDirection(Position position, Color attackingColor, KnightDirection knightDirection) const;
 		Position getAttackingPosition(Position position, Color attackingColor) const;
+		std::vector<Position> getAllAttackingPositions(Position position, Color attackingColor) const;
+		bool isPinnedToKing(Position position, Color defendingColor) const;
+		bool hasLegalMoveTo(Position position, Color color) const;
 
 		void updateUnderAttack(); // Recomputes fully.
 		void updateUnderAttackFrom(Position position);

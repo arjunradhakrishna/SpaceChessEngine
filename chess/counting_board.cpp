@@ -93,6 +93,11 @@ namespace space {
 		return (attackedBy[(int)attackingColor][position.rank][position.file] & direction) != 0;
 	}
 
+	inline bool CBoard::isUnderAttackFromKnightDirection(Position position, Color attackingColor, KnightDirection knightDirection) const {
+		return (attackedByKnight[(int)attackingColor][position.rank][position.file] & knightDirection) != 0;
+	}
+
+
 	inline bool CBoard::isUnderCheck(Color color, std::optional<Position> targetKingPosition) const {
 		auto& position = kingPosition[(int)color];
 		auto attackingColor = oppositeColor(color);
@@ -325,6 +330,24 @@ namespace space {
 			}
 		}
 
+		for (auto color : { Color::White, Color::Black }) {
+			ss << "Attacks from ";
+			ss << (color == Color::White ? "white" : "black");
+			ss << " (knights):" << std::endl;
+
+			for (int f = 0; f <= 7; f++) {
+				for (int r = 0; r <= 7; r++) {
+					for (auto kDir : knightDirections) {
+						if (isUnderAttackFromKnightDirection({r,f}, color, kDir)) {
+							auto offset = knightDirectionToOffset(kDir);
+							ss << "\t" << (char)('a' + f) << (r + 1) << " is attacked from ";
+							ss << "\t" << (char)('a' + f + offset.second) << (r + offset.first + 1);
+							ss << std::endl;
+						}
+					}
+				}
+			}
+		}
 		return ss.str();
 	}
 
@@ -432,7 +455,6 @@ namespace space {
 		board->nextMover = mover == 'w' ? Color::White : Color::Black;
 
 		std::string castling; ss >> castling;
-		// debug << "Castling: " << castling << std::endl;
 		for (auto c : castling) {
 			if (c == 'K') board->castlingRights[(int)Color::White][ShortCastle] = true;
 			if (c == 'Q') board->castlingRights[(int)Color::White][LongCastle] = true;
@@ -452,9 +474,7 @@ namespace space {
 	}
 
 	std::optional<IBoard::Ptr> CBoard::updateBoard(Move move) const {
-		// debug << "Starting update board..." << std::endl;
 		if (!isValidMove(move)) return {};
-		// debug << "Is valid move." << std::endl;
 
 		auto newBoard = clone();
 		auto movingPiece = pieces[move.sourceRank][move.sourceFile];
@@ -533,10 +553,6 @@ namespace space {
 	}
 
 	bool CBoard::isValidMove(Move move) const {
-		// debug << "Validating move: " << (char)(move.sourceFile + 'a') << (move.sourceRank + 1)
-		      // << " to "
-		      // << (char)(move.destinationFile + 'a') << (move.destinationRank + 1)
-		      // << std::endl;
 		auto otherColor = oppositeColor(nextMover);
 
 		// Trivial things.
@@ -548,7 +564,6 @@ namespace space {
 		) {
 			return false;
 		}
-		// debug << "Trivial checks passed." << std::endl;
 
 		// Move semantics
 		auto movingPieceType = pieces[move.sourceRank][move.sourceFile].pieceType;
@@ -587,7 +602,6 @@ namespace space {
 				    move.destinationFile == enPassantSquare.value().file) break;
 				return false;
 		}
-		// debug << "Move semantics are correct." << std::endl;
 
 		// Not jumping over pieces (unless knight)
 		if (movingPieceType != PieceType::Knight) {
@@ -602,7 +616,6 @@ namespace space {
 				if (p.pieceType != PieceType::None) return false;
 			}
 		}
-		// debug << "Move doesn't jump over pieces." << std::endl;
 
 		// Some piece that was pinned to the king moves off that
 		// file, rank, or diagonal.
@@ -618,7 +631,6 @@ namespace space {
 			for (auto d = 1; d < dist; d++) {
 				auto r = kingPos.rank + d * offset.first;
 				auto f = kingPos.file + d * offset.second;
-				// debug << "Checking " << (char)('a' + f) << (r + 1) << std::endl;
 				if (pieces[r][f].pieceType != PieceType::None) {
 					blocked = true;
 					break;
@@ -629,15 +641,11 @@ namespace space {
 				return false;
 			}
 		}
-		// debug << "Move doesn't move a piece pinned to the king." << std::endl;
 
 		// Your king is in check and you don't fix it.
 		if (isUnderCheck(nextMover)) {
 			auto valid = isValidResponseToCheck(move, false);
-			// debug << "Move is valid response to check." << std::endl;
 		}
-
-		// debug << "Move is valid." << std::endl;
 
 		return true;
 	}
@@ -703,6 +711,7 @@ namespace space {
 			return true;
 		}
 
+		// Blocks
 		if (inDirection(kingPos, destinationPosition) && inDirection(kingPos, attackingPosition)) {
 			auto [blockDir, blockDist] = getDirectionAndDistance(kingPos, destinationPosition);
 			auto [attackDir, attackDist] = getDirectionAndDistance(kingPos, destinationPosition);
@@ -712,27 +721,66 @@ namespace space {
 		return false;
 	}
 
+	// Can we stream this? How do we do such things in C++?
+	// Coroutines? Streams? Lazy evaluation?
+	std::vector<Position> CBoard::getAllAttackingPositions(Position position, Color attackingColor) const {
+		std::vector<Position> result;
+
+		auto attacks = attackedBy[(int)attackingColor][position.rank][position.file];
+		auto knightAttacks = attackedByKnight[(int)attackingColor][position.rank][position.file];
+		if (attacks != 0) {
+			for (auto dir : allDirections) {
+				if (attacks & dir) {
+					auto offset = directionToOffset(dir);
+					for (int i = 1; i <= 7; i++) {
+						auto r = position.rank + i * offset.first;
+						auto f = position.file + i * offset.second;
+						if (r < 0 || r > 7 || f < 0 || f > 7) break;
+						if (pieces[r][f].pieceType != PieceType::None) {
+							result.push_back({ r, f });
+							break;
+						}
+					}
+				}
+			}
+		}
+		if (knightAttacks != 0) {
+			for (auto kdir : knightDirections) {
+				if (knightAttacks & kdir) {
+					auto offset = knightDirectionToOffset(kdir);
+					result.push_back({ position.rank + offset.first, position.file + offset.second });
+				}
+			}
+		}
+
+		return result;
+	}
+
 	Position CBoard::getAttackingPosition(Position position, Color attackingColor) const {
 		auto attacks = attackedBy[(int)attackingColor][position.rank][position.file];
 		auto knightAttacks = attackedByKnight[(int)attackingColor][position.rank][position.file];
 		if (attacks != 0) {
 			for (auto dir : allDirections) {
-				if (attacks & dir != 0) {
+				if (attacks & dir) {
 					auto offset = directionToOffset(dir);
-					for (int i = 0; i < 7; i++) {
+					for (int i = 1; i <= 7; i++) {
 						auto r = position.rank + i * offset.first;
 						auto f = position.file + i * offset.second;
+						if (r < 0 || r > 7 || f < 0 || f > 7) break;
 						if (pieces[r][f].pieceType != PieceType::None) return { r, f };
 					}
 				}
 			}
 		}
-		for (auto kdir : knightDirections) {
-			if (knightAttacks & kdir) {
-				auto offset = knightDirectionToOffset(kdir);
-				return { position.rank + offset.first, position.file + offset.second };
+		if (knightAttacks != 0) {
+			for (auto kdir : knightDirections) {
+				if (knightAttacks & kdir) {
+					auto offset = knightDirectionToOffset(kdir);
+					return { position.rank + offset.first, position.file + offset.second };
+				}
 			}
 		}
+		return { -1000000, -1000000 };
 	}
 
 	void CBoard::addPieceAt(Piece piece, Position position) {
@@ -776,7 +824,7 @@ namespace space {
 		for (auto direction : directions) {
 			auto offset = directionToOffset(direction);
 			for (int cr = r + offset.first, cf = f + offset.second;
-			     cr >= 0 && cr <= 7 && cf >= 0 && cr <= 7;
+			     cr >= 0 && cr <= 7 && cf >= 0 && cf <= 7;
 				 cr += offset.first, cf += offset.second
 			) {
 				attackedBy[(int)piece.color][cr][cf] &= (~oppositeDirection(direction));
@@ -843,5 +891,206 @@ namespace space {
 				}
 			}
 		}
+	}
+
+	bool CBoard::isCheckMate() const {
+		if (!isUnderCheck(nextMover)) return false;
+		auto oppColor = oppositeColor(nextMover);
+
+		// Getting out of checks:
+		// 1. King moves.
+		// 2. Capture attacking piece (can't do if double check)
+		// 3. Block the check (can't do if double check)
+		auto kPos = kingPosition[(int)nextMover];
+		auto kRank = kPos.rank;
+		auto kFile = kPos.file;
+		auto checkDirs = attackedBy[(int)oppColor][kRank][kFile];
+		for (auto moveDir : allDirections) {
+			auto offset = directionToOffset(moveDir);
+			auto rank = kRank + offset.first;
+			auto file = kFile + offset.second;
+			if (rank < 0 || rank > 7 || file < 0 || file > 7) continue; // out of bounds
+
+			if (pieces[rank][file].pieceType != PieceType::None &&
+				pieces[rank][file].color == nextMover) continue;  // can't capture own pieces
+			if (isUnderAttack({rank, file}, oppColor)) continue;
+
+			// You can move away from the rank/file/diagonal the check is on.
+			auto oppDir = oppositeDirection(moveDir);
+			if ((moveDir & checkDirs) == 0 &&  (oppDir & checkDirs) == 0) {
+				return false;
+			}
+			else {
+				// You have to capture attacking piece or move away from a pawn check.
+				if ((moveDir & checkDirs)) {
+					// Moving towards attacking piece. Have to capture.
+					// Whether the attacking piece is supported is already checked by isUnderAttack.
+					if (pieces[rank][file].pieceType != PieceType::None) return false;
+				}
+				else {
+					// Move away from attacking piece. Has to be a pawn.
+					auto pawnOpt = pieces[kRank - offset.first][kFile - offset.second].pieceType;
+					if (pawnOpt != PieceType::Pawn) continue;
+				}
+			}
+
+			return false;  // Have non-attacked square.
+		}
+		// debug << "King has no legal moves." << std::endl;
+
+		// Double checks. Can't capture attacking piece and can't block.
+		auto numChecks = std::popcount(attackedBy[(int)oppColor][kRank][kFile]) + 
+			std::popcount(attackedByKnight[(int)oppColor][kRank][kFile]);
+		if (numChecks > 1) return true;
+		// debug << "Not a double check." << std::endl;
+
+		// Captures and blocks can be handled them together.
+		// We should have a non-pinned piece that can move to the blocking or capturing square.
+		auto attackingPosition = getAttackingPosition(kPos, oppColor);
+		auto attackingPiece = pieces[attackingPosition.rank][attackingPosition.file].pieceType;
+		// debug << "Attacking position: " << (char)('a' + attackingPosition.file) << (attackingPosition.rank + 1) << std::endl;
+		if (attackingPiece == PieceType::Knight) { // Knights can't be blocked. Only captured.
+			return !hasLegalMoveTo(attackingPosition, nextMover);
+		}
+		else {
+			auto [attackDir, attackDist] = getDirectionAndDistance(kPos, attackingPosition);
+			auto offset = directionToOffset(attackDir);
+			for (auto i = 1; i <= attackDist; i++) { // <= to handle captures.
+				auto rank = kRank + i * offset.first;
+				auto file = kFile + i * offset.second;
+
+				// Can a piece move here legally?
+				if (hasLegalMoveTo({ rank, file }, nextMover)) return false;
+			}
+		}
+
+		// En passants
+		if (attackingPiece == PieceType::Pawn
+			&& enPassantSquare.has_value()
+			&& attackingPosition.file == enPassantSquare.value().file
+			&& attackingPosition.rank == (nextMover == Color::White ? 4 : 3) // En passant
+		) {
+			for (auto fDiff : { 1, -1 }) {
+				auto f = attackingPosition.file + fDiff;
+				if (f < 0 || f > 7) continue;
+				auto piece = pieces[attackingPosition.rank][f];
+				if (piece.pieceType == PieceType::Pawn &&
+				    piece.color == nextMover &&
+					!isPinnedToKing({attackingPosition.rank, f}, nextMover)) {
+					return false;
+				}
+			}
+		}
+
+		return true;
+	}
+
+	bool CBoard::isPinnedToKing(Position position, Color defendingColor) const {
+		// This pin does not necessarily mean the piece can't move.
+		// The pinned piece can potentially capture the pinning piece.
+		auto kPos = kingPosition[(int)defendingColor];
+		if (!inDirection(kPos, position)) {
+			return false;
+		}
+
+		auto attackingColor = oppositeColor(defendingColor);
+		auto [ dir, dist ] = getDirectionAndDistance(kPos, position);
+		auto isAttackedFromDir = attackedBy[(int)attackingColor][position.rank][position.file] & dir;
+		if (isAttackedFromDir == 0) return false;
+		auto offset = directionToOffset(dir);
+
+		// If there is something between the piece and the king, it is not a pin.
+		for (auto i = 1; i < dist; i++) {
+			if (pieces[kPos.rank + i * offset.first][kPos.file + i * offset.second].pieceType != PieceType::None) {
+				return false;
+			}
+		}
+
+		// We have a pin if the attacking piece is not a pawn or king.
+		auto closeAttackingPiece = pieces[position.rank + offset.first][position.file + offset.second].pieceType;
+		if (closeAttackingPiece == PieceType::King || closeAttackingPiece == PieceType::Pawn) {
+			return false;
+		}
+
+		return true;
+	}
+
+	// Does not check for when the position itself has checks.
+	bool CBoard::hasLegalMoveTo(Position toPos, Color color) const {
+		// Pawn moves without capture.
+		// Pawns can move to a position which they are not attacking.
+		if (pieces[toPos.rank][toPos.file].pieceType == PieceType::None) {
+			auto moveRankDiff = (color == Color::White) ? 1 : -1;
+			Position oneStep = { toPos.rank - moveRankDiff, toPos.file };
+			if (oneStep.rank >= 0 && oneStep.rank <= 7) {
+				// debug << "Checking non-capture pawn move from: " << (char)(oneStep.file + 'a') << (oneStep.rank + 1) << std::endl;
+				if (pieces[oneStep.rank][oneStep.file].pieceType == PieceType::Pawn
+					&& pieces[oneStep.rank][oneStep.file].color == color && !isPinnedToKing(oneStep, color)) {
+					return true;
+				}
+				// debug << "No one step move." << std::endl;
+			}
+
+			Position twoStep = { toPos.rank - 2 * moveRankDiff, toPos.file };
+			if (twoStep.rank == ((color == Color::White) ? 1 : 6)) {
+				if (twoStep.rank >= 0 && twoStep.rank <= 7) {
+					// debug << "Checking non-capture pawn move from: " << (char)(twoStep.file + 'a') << (twoStep.rank + 1) << std::endl;
+					if (pieces[twoStep.rank][twoStep.file].pieceType == PieceType::Pawn
+						&& pieces[twoStep.rank][twoStep.file].color == color
+						&& pieces[oneStep.rank][oneStep.file].pieceType == PieceType::None
+						&& !isPinnedToKing(twoStep, color)) {
+						return true;
+					}
+				}
+			}
+		}
+		// debug << "No non-capture pawn moves." << std::endl;
+
+		// No attacking moves at all.
+		if (attackedBy[(int)color][toPos.rank][toPos.file] == 0 &&
+			attackedByKnight[(int)color][toPos.rank][toPos.file] == 0) return false;
+
+		// Everything else
+		auto candidateFromPositions = getAllAttackingPositions(toPos, color);
+		// for (auto p : candidateFromPositions) debug << "Found potential move from: " << (char)(p.file + 'a') << (p.rank + 1) << std::endl;
+		auto kPos = kingPosition[(int)color];
+		auto oppColor = oppositeColor(color);
+		auto checkDirs = attackedBy[(int)oppColor][kPos.rank][kPos.file];
+		for (auto fromPos : candidateFromPositions) {
+			// debug << "Checking move from "
+			    //   << (char)(fromPos.file + 'a') << (fromPos.rank + 1)
+				//   << " to "
+			    //   << (char)(toPos.file + 'a') << (toPos.rank + 1)
+				//   << std::endl;
+			auto piece = pieces[fromPos.rank][fromPos.file].pieceType;
+			if (piece == PieceType::King) {
+				if (isUnderAttack(toPos, oppColor)) continue;
+				auto [moveDir, dist] = getDirectionAndDistance(kPos, toPos);
+				if ((checkDirs & moveDir) || (checkDirs & oppositeDirection(moveDir))) continue;
+			}
+			else if (piece == PieceType::Pawn) {
+				if (pieces[toPos.rank][toPos.file].pieceType != PieceType::None
+					&& pieces[toPos.rank][toPos.file].color == oppColor 
+					&& !isPinnedToKing(fromPos, color)) { // Should be a capture
+					return true;
+				}
+			}
+			else {
+				if (!isPinnedToKing(fromPos, color)) {
+					return true;
+				}
+
+				// Legal move is not knight
+
+				// Even if you are pinned, you could move in the same file/rank/diagonal.
+				// Legal move is not knight
+				
+				auto [ fDir, fDist ] = getDirectionAndDistance(kPos, fromPos);
+				auto [ tDir, tDist ] = getDirectionAndDistance(kPos, toPos);
+				if (fDir == tDir) return true;
+			}
+		}
+
+		return false;
 	}
 }
