@@ -41,7 +41,7 @@ namespace {
         bool is_short_castle = !is_long_castle && move.substr(0, 3) == "O-O";
 
         // Promotion: =Q, =N, etc
-        auto promotion_piece = space::Piece();
+        space::Piece promotion_piece = { space::PieceType::None, side };
         bool is_promotion = !is_long_castle && !is_short_castle && move[pos - 1] == '=';
         if (is_promotion) {
             char promotion_piece_char = is_promotion ? move[pos] : '-';

@@ -45,16 +45,15 @@ namespace test_utils {
 	}
 
 	void validate_game_moves(space::Game& game) {
-		space::debug << game.metadata["Site"] << std::endl;
 		auto board = space::CBoard::fromFen(game.starting_position);
-		space::debug << board->as_string(true, true) << std::endl;
-		space::debug << static_cast<space::CBoard*>(board.get())->attackString() << std::endl;
+		// space::debug << board->as_string(true, true) << std::endl;
+		// space::debug << static_cast<space::CBoard*>(board.get())->attackString() << std::endl;
 
 		for (auto ply : game.plies) {
-			space::debug << ply.move_number
-			          << (ply.color == space::Color::White ? ". " : "... ")
-			          << ply.move
-			          << std::endl;
+			// space::debug << ply.move_number
+			          // << (ply.color == space::Color::White ? ". " : "... ")
+			          // << ply.move
+			          // << std::endl;
 			test_utils::validate_ply(ply);
 
 			auto move = ply.to_move(board.get());
@@ -64,8 +63,8 @@ namespace test_utils {
 			ASSERT_TRUE(board_opt.has_value());
 			board = board_opt.value();
 
-			space::debug << board->as_string(true, true) << std::endl;
-			space::debug << static_cast<space::CBoard*>(board.get())->attackString() << std::endl;
+			// space::debug << board->as_string(true, true) << std::endl;
+			// space::debug << static_cast<space::CBoard*>(board.get())->attackString() << std::endl;
 
 			auto opp_color = ply.color == space::Color::White
 				? space::Color::Black
@@ -290,6 +289,7 @@ TEST(AlgoSuite, AlgoLinearTest) {
 
 
 }
+*/
 
 TEST(BoardSuite, PGNParseTest) {
 	using namespace space;
@@ -298,17 +298,18 @@ TEST(BoardSuite, PGNParseTest) {
 		"games/lichess_db_standard_rated_2013-01.pgn",
 		std::ios_base::in
 	);
-	auto games = PGN::parse_many(f, 100);
-	// auto games = PGN::parse_all(f);
+	// auto games = PGN::parse_many(f, 1000);
+	auto games = PGN::parse_all(f);
 	f.close();
 
 	for (auto& game : games) {
-		std::cout << "Validating: " << game.metadata["Site"] << std::endl;
+		// if (game.metadata["Site"] !=  "https://lichess.org/tq5hk5pt") continue;
+		// std::cout << "Validating: " << game.metadata["Site"] << std::endl;
 		test_utils::validate_game_moves(game);
 	}
 }
-*/
 
+/*
 TEST(BoardSuite, PGNParseFromPositionTest) {
 	using namespace space;
 
@@ -321,7 +322,6 @@ TEST(BoardSuite, PGNParseFromPositionTest) {
 	test_utils::validate_game_moves(*game);
 }
 
-/*
 TEST(CBoardSuite, Initialization) {
 	using namespace space;
 

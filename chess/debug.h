@@ -9,8 +9,8 @@ namespace space {
 	};
 
 	template<typename T>
-	NullStream& operator<<(NullStream& ns, const T&) { return ns; }
+	inline NullStream& operator<<(NullStream& ns, const T&) { return ns; }
 
-	static auto& debug = std::cout;
+	// static auto& debug = std::cout;
 	// static auto debug = NullStream();
 }

@@ -432,7 +432,7 @@ namespace space {
 		board->nextMover = mover == 'w' ? Color::White : Color::Black;
 
 		std::string castling; ss >> castling;
-		debug << "Castling: " << castling << std::endl;
+		// debug << "Castling: " << castling << std::endl;
 		for (auto c : castling) {
 			if (c == 'K') board->castlingRights[(int)Color::White][ShortCastle] = true;
 			if (c == 'Q') board->castlingRights[(int)Color::White][LongCastle] = true;
@@ -452,9 +452,9 @@ namespace space {
 	}
 
 	std::optional<IBoard::Ptr> CBoard::updateBoard(Move move) const {
-		debug << "Starting update board..." << std::endl;
+		// debug << "Starting update board..." << std::endl;
 		if (!isValidMove(move)) return {};
-		debug << "Is valid move." << std::endl;
+		// debug << "Is valid move." << std::endl;
 
 		auto newBoard = clone();
 		auto movingPiece = pieces[move.sourceRank][move.sourceFile];
@@ -515,6 +515,13 @@ namespace space {
 			newBoard->removePieceAt({ move.sourceRank, move.destinationFile });
 			newBoard->addPieceAt({ PieceType::Pawn, nextMover }, { move.destinationRank, move.destinationFile });
 		}
+		else if (move.promotedPiece != PieceType::None) {
+			newBoard->removePieceAt({ move.sourceRank, move.sourceFile });
+			if (pieces[move.destinationRank][move.destinationFile].pieceType != PieceType::None) {
+				newBoard->removePieceAt({ move.destinationRank, move.destinationFile });
+			}
+			newBoard->addPieceAt({ move.promotedPiece, nextMover }, { move.destinationRank, move.destinationFile });
+		}
 		else {
 			newBoard->removePieceAt({ move.sourceRank, move.sourceFile });
 			if (pieces[move.destinationRank][move.destinationFile].pieceType != PieceType::None) {
@@ -526,10 +533,10 @@ namespace space {
 	}
 
 	bool CBoard::isValidMove(Move move) const {
-		debug << "Validating move: " << (char)(move.sourceFile + 'a') << (move.sourceRank + 1)
-		      << " to "
-		      << (char)(move.destinationFile + 'a') << (move.destinationRank + 1)
-		      << std::endl;
+		// debug << "Validating move: " << (char)(move.sourceFile + 'a') << (move.sourceRank + 1)
+		      // << " to "
+		      // << (char)(move.destinationFile + 'a') << (move.destinationRank + 1)
+		      // << std::endl;
 		auto otherColor = oppositeColor(nextMover);
 
 		// Trivial things.
@@ -541,7 +548,7 @@ namespace space {
 		) {
 			return false;
 		}
-		debug << "Trivial checks passed." << std::endl;
+		// debug << "Trivial checks passed." << std::endl;
 
 		// Move semantics
 		auto movingPieceType = pieces[move.sourceRank][move.sourceFile].pieceType;
@@ -580,7 +587,7 @@ namespace space {
 				    move.destinationFile == enPassantSquare.value().file) break;
 				return false;
 		}
-		debug << "Move semantics are correct." << std::endl;
+		// debug << "Move semantics are correct." << std::endl;
 
 		// Not jumping over pieces (unless knight)
 		if (movingPieceType != PieceType::Knight) {
@@ -595,7 +602,7 @@ namespace space {
 				if (p.pieceType != PieceType::None) return false;
 			}
 		}
-		debug << "Move doesn't jump over pieces." << std::endl;
+		// debug << "Move doesn't jump over pieces." << std::endl;
 
 		// Some piece that was pinned to the king moves off that
 		// file, rank, or diagonal.
@@ -611,7 +618,7 @@ namespace space {
 			for (auto d = 1; d < dist; d++) {
 				auto r = kingPos.rank + d * offset.first;
 				auto f = kingPos.file + d * offset.second;
-				debug << "Checking " << (char)('a' + f) << (r + 1) << std::endl;
+				// debug << "Checking " << (char)('a' + f) << (r + 1) << std::endl;
 				if (pieces[r][f].pieceType != PieceType::None) {
 					blocked = true;
 					break;
@@ -622,15 +629,15 @@ namespace space {
 				return false;
 			}
 		}
-		debug << "Move doesn't move a piece pinned to the king." << std::endl;
+		// debug << "Move doesn't move a piece pinned to the king." << std::endl;
 
 		// Your king is in check and you don't fix it.
 		if (isUnderCheck(nextMover)) {
 			auto valid = isValidResponseToCheck(move, false);
-			debug << "Move is valid response to check." << std::endl;
+			// debug << "Move is valid response to check." << std::endl;
 		}
 
-		debug << "Move is valid." << std::endl;
+		// debug << "Move is valid." << std::endl;
 
 		return true;
 	}
