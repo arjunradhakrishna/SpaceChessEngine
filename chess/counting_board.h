@@ -57,7 +57,7 @@ namespace space {
 
 	public:
 		// Game state
-		bool isStaleMate() const override {}
+		bool isStaleMate() const override;
 		bool isCheckMate() const override;
 
 		// Moves and updates
@@ -81,6 +81,7 @@ namespace space {
 		std::vector<Position> getAllAttackingPositions(Position position, Color attackingColor) const;
 		bool isPinnedToKing(Position position, Color defendingColor) const;
 		bool hasLegalMoveTo(Position position, Color color) const;
+		bool hasLegalMoveFrom(Position position, Color color) const;
 
 		void updateUnderAttack(); // Recomputes fully.
 		void updateUnderAttackFrom(Position position);

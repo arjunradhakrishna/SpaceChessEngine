@@ -128,8 +128,8 @@ namespace space {
 		board->nextMover = Color::White;
 
 		// Initial empty squares
-		for (auto f = 0; f <= 7; f++) 
-			for (auto r = 0; r <= 7; r++) 
+		for (auto f = 0; f <= 7; f++)
+			for (auto r = 0; r <= 7; r++)
 				board->pieces[r][f] = { PieceType::None, Color::White };
 
 		// Initial white pieces
@@ -557,6 +557,8 @@ namespace space {
 
 		// Trivial things.
 		if (
+			move.destinationRank < 0 || move.destinationRank > 7 ||
+			move.sourceRank < 0 || move.sourceFile > 7 ||
 			pieces[move.sourceRank][move.sourceFile].color != nextMover || // Moving wrong color piece
 			pieces[move.sourceRank][move.sourceFile].pieceType == PieceType::None || // Moving no piece
 			(pieces[move.destinationRank][move.destinationFile].pieceType != PieceType:: None
@@ -595,7 +597,8 @@ namespace space {
 				if (fileDiff == 0 && rankDiff == 2 && move.sourceRank == startRank) break;
 				// Standard capture
 				if (fileDiff == 1 && rankDiff == 1 &&
-				    pieces[move.destinationRank][move.destinationFile].pieceType != PieceType::None) break;
+				    pieces[move.destinationRank][move.destinationFile].pieceType != PieceType::None &&
+					pieces[move.destinationRank][move.destinationFile].color != nextMover) break;
 				// Enpassant capture
 				if (fileDiff == 1 && rankDiff == 1 && enPassantSquare.has_value() &&
 				    move.destinationRank == enPassantSquare.value().rank &&
@@ -1092,5 +1095,87 @@ namespace space {
 		}
 
 		return false;
+	}
+
+	bool CBoard::hasLegalMoveFrom(Position fromPos, Color color) const {
+		space_assert(!isUnderCheck(color), "Currently we are not handling checks.");
+
+		auto fRank = fromPos.rank, fFile = fromPos.file;
+		auto piece = pieces[fRank][fFile];
+		if (piece.pieceType == PieceType::None || piece.color != nextMover) return false;
+
+		// For other pieces, 
+		// 1. We first find a move.
+		// 2. Check if the piece is pinned to the king.
+		// 3. If so, do additional stuff. 
+		auto baseRank = nextMover == Color::White ? 0 : 7;
+		auto& directions =
+			(piece.pieceType == PieceType::Queen)  ? allDirections : (
+			(piece.pieceType == PieceType::Rook)   ? cardinalDirections : (
+			(piece.pieceType == PieceType::Bishop) ? diagonalDirections : (
+			(piece.pieceType == PieceType::King)   ? allDirections : (
+			noDirections))));
+		auto pawnDir = nextMover == Color::White ? 1 : -1;
+		switch (piece.pieceType) {
+			case PieceType::Knight:
+				for (auto kDir : knightDirections) {
+					auto offset = knightDirectionToOffset(kDir);
+					auto dRank = fRank + offset.first;
+					auto dFile = fFile + offset.second;
+					if (dRank < 0 || dRank > 7 || dFile < 0 || dFile > 7) continue;
+					if (pieces[dRank][dFile].pieceType != PieceType::None &&
+						pieces[dRank][dFile].color == nextMover) continue;
+					if (isValidMove({fRank, fFile, dRank, dFile})) return true;
+				}
+			case PieceType::King:
+				if (fRank == baseRank && fFile == 4 &&
+				    pieces[baseRank][4].pieceType == PieceType::King
+				 && pieces[baseRank][4].color == nextMover) {
+					// Castling
+					if (isValidMove({fRank, fFile, fRank, fFile + 2})
+					 || isValidMove({fRank, fFile, fRank, fFile - 2})) {
+						 return true;
+					 }
+				 }
+			case PieceType::Queen:
+			case PieceType::Bishop:
+			case PieceType::Rook:
+				// We can get away with checking only 1 step moves because we aren't
+				// under check.
+				for (auto dir : directions) {
+					auto offset = directionToOffset(dir);
+					auto dRank = fRank + offset.first;
+					auto dFile = fFile + offset.second;
+					if (isValidMove({ fRank, fFile, dRank, dFile })) return true;
+				}
+				break;
+			case PieceType::Pawn:
+				// Regular moves and promotions
+				if (isValidMove({ fRank, fFile, fRank + pawnDir, fFile, PieceType::Queen })) return false;
+				// Two step moves
+				if (fRank == baseRank && isValidMove({ fRank, fFile, fRank + 2 * pawnDir, fFile })) return false;
+				// Captures and enpassant captures
+				for (auto fDiff : { 1, -1 }) {
+					if (isValidMove({ fRank, fFile, fRank + pawnDir, fFile + fDiff })) return false;
+				}
+				break;
+			default: space_assert(false, "Unknown piece type");
+		}
+
+		return false;
+	}
+
+	bool CBoard::isStaleMate() const {
+		if (isUnderCheck(nextMover)) return false;
+
+		for (int r = 0; r <= 7; r++) {
+			for (int f = 0; f <= 7; f++) {
+				auto piece = pieces[r][f];
+				if (piece.pieceType == PieceType::None || piece.color != nextMover) continue;
+
+				if (hasLegalMoveFrom({r, f}, nextMover)) return false;
+			}
+		}
+		return true;
 	}
 }

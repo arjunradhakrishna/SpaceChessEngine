@@ -25,6 +25,8 @@ namespace space {
 			case Direction::SouthEast: return "SouthEast";
 			case Direction::SouthWest: return "SouthWest";
 		}
+		space_assert(false, "Unknown direction.");
+		return nullptr;
 	}
 
 	constexpr std::pair<int, int> directionToOffset(Direction direction) {

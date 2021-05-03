@@ -75,6 +75,16 @@ namespace test_utils {
 			auto board_in_checkmate = board->isCheckMate();
 			auto move_is_checkmate = ply.is_checkmate;
 			ASSERT_EQ(board_in_checkmate, ply.is_checkmate);
+
+			/*
+			auto board_in_stalemate = board->isStaleMate();
+			if (board_in_stalemate) {
+				space::debug << "Game: " << game.metadata["Site"] << std::endl;
+				space::debug << "Is stalemate." << std::endl;
+				space::debug << board->as_string(true, true) << std::endl;
+				space::debug << static_cast<space::CBoard*>(board.get())->attackString() << std::endl;
+			}
+			*/
 		}
 	}
 }
