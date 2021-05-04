@@ -556,19 +556,21 @@ namespace space {
 		auto otherColor = oppositeColor(nextMover);
 
 		// Trivial things.
-		if (
-			move.destinationRank < 0 || move.destinationRank > 7 ||
-			move.sourceRank < 0 || move.sourceFile > 7 ||
-			pieces[move.sourceRank][move.sourceFile].color != nextMover || // Moving wrong color piece
-			pieces[move.sourceRank][move.sourceFile].pieceType == PieceType::None || // Moving no piece
-			(pieces[move.destinationRank][move.destinationFile].pieceType != PieceType:: None
-			 && pieces[move.destinationRank][move.destinationFile].color == nextMover) // Capturing own piece.
+		if (move.destinationRank < 0 || move.destinationRank > 7) return false;
+		if (move.destinationFile < 0 || move.destinationFile > 7) return false;
+		if (move.destinationRank < 0 || move.destinationRank > 7) return false;
+		if (move.destinationFile < 0 || move.destinationFile > 7) return false;
+		auto movingPiece = pieces[move.sourceRank][move.sourceFile];
+		auto movingPieceType = movingPiece.pieceType;
+		auto capturedPiece = pieces[move.destinationRank][move.destinationFile];
+		if (movingPiece.color != nextMover || // Moving wrong color piece
+			movingPieceType == PieceType::None || // Moving no piece
+			(capturedPiece.pieceType != PieceType::None && capturedPiece.color == nextMover) // Capturing own piece.
 		) {
 			return false;
 		}
 
 		// Move semantics
-		auto movingPieceType = pieces[move.sourceRank][move.sourceFile].pieceType;
 		auto rankDiff = abs(move.sourceRank - move.destinationRank);
 		auto fileDiff = abs(move.sourceFile - move.destinationFile);
 		auto isOrtho = fileDiff == 0 || rankDiff == 0;
@@ -586,13 +588,17 @@ namespace space {
 				if (isCastle && !isValidCastle(move)) return false;
 				if (!isCastle && (rankDiff > 1 || fileDiff > 1)) return false;
 				if (isUnderAttack({ move.destinationRank, move.destinationFile}, otherColor)) return false;
+
+				// ?? King moves in the direction of the attack.
+				// ?? Say rook on e1 attacks king on f1. King can't move to g1.
 				break;
 			case PieceType::Pawn:
 				auto startRank = nextMover == Color::White ? 1 : 6;
 				// Move in wrong direction
 				if ((move.sourceRank < move.destinationRank) != (nextMover == Color::White)) return false;
 				// Move 1 square
-				if (fileDiff == 0 && rankDiff == 1) break;
+				if (fileDiff == 0 && rankDiff == 1 &&
+					pieces[move.destinationRank][move.destinationFile].pieceType == PieceType::None) break;
 				// Move 2 squares from starting square
 				if (fileDiff == 0 && rankDiff == 2 && move.sourceRank == startRank) break;
 				// Standard capture
@@ -606,13 +612,12 @@ namespace space {
 				return false;
 		}
 
+		Position sourcePosition {move.sourceRank, move.sourceFile};
+		Position destinationPosition {move.destinationRank, move.destinationFile};
 		// Not jumping over pieces (unless knight)
 		if (movingPieceType != PieceType::Knight) {
 			// Everything between start and destination square should be empty.
-			auto [dir, distance] = getDirectionAndDistance(
-				{move.sourceRank, move.sourceFile},
-				{move.destinationRank, move.destinationFile}
-			);
+			auto [dir, distance] = getDirectionAndDistance(sourcePosition, destinationPosition);
 			auto offset = directionToOffset(dir);
 			for (auto i = 1; i < distance; i++) {
 				auto p = pieces[move.sourceRank + i * offset.first][move.sourceFile + i * offset.second];
@@ -623,26 +628,11 @@ namespace space {
 		// Some piece that was pinned to the king moves off that
 		// file, rank, or diagonal.
 		auto kingPos = kingPosition[(int)nextMover];
-		Position sourcePosition = { move.sourceRank, move.sourceFile };
-		if (movingPieceType != PieceType::King && inDirection(kingPos, sourcePosition)) {
-			// Can be pinned.
-			auto [direction, dist] = getDirectionAndDistance(kingPos, sourcePosition);
-
-			// Was there something between the moving piece and the king?
-			auto blocked = false;
-			auto offset = directionToOffset(direction);
-			for (auto d = 1; d < dist; d++) {
-				auto r = kingPos.rank + d * offset.first;
-				auto f = kingPos.file + d * offset.second;
-				if (pieces[r][f].pieceType != PieceType::None) {
-					blocked = true;
-					break;
-				}
-			}
-
-			if (!blocked && isUnderAttackFromDirection(sourcePosition, otherColor, oppositeDirection(direction))) {
-				return false;
-			}
+		if (movingPieceType != PieceType::King && isPinnedToKing(sourcePosition, nextMover)) {
+			if (!inDirection(kingPos, destinationPosition)) return false;
+			auto [ sourceDir, sourceDist ] = getDirectionAndDistance(kingPos, sourcePosition);
+			auto [ destDir, destDist ] = getDirectionAndDistance(kingPos, destinationPosition);
+			if (sourceDir != destDir) return false;
 		}
 
 		// Your king is in check and you don't fix it.
@@ -1102,20 +1092,20 @@ namespace space {
 
 		auto fRank = fromPos.rank, fFile = fromPos.file;
 		auto piece = pieces[fRank][fFile];
-		if (piece.pieceType == PieceType::None || piece.color != nextMover) return false;
+		if (piece.pieceType == PieceType::None || piece.color != color) return false;
 
 		// For other pieces, 
 		// 1. We first find a move.
 		// 2. Check if the piece is pinned to the king.
 		// 3. If so, do additional stuff. 
-		auto baseRank = nextMover == Color::White ? 0 : 7;
+		auto baseRank = color == Color::White ? 0 : 7;
 		auto& directions =
 			(piece.pieceType == PieceType::Queen)  ? allDirections : (
 			(piece.pieceType == PieceType::Rook)   ? cardinalDirections : (
 			(piece.pieceType == PieceType::Bishop) ? diagonalDirections : (
 			(piece.pieceType == PieceType::King)   ? allDirections : (
 			noDirections))));
-		auto pawnDir = nextMover == Color::White ? 1 : -1;
+		auto pawnDir = color == Color::White ? 1 : -1;
 		switch (piece.pieceType) {
 			case PieceType::Knight:
 				for (auto kDir : knightDirections) {
@@ -1124,13 +1114,13 @@ namespace space {
 					auto dFile = fFile + offset.second;
 					if (dRank < 0 || dRank > 7 || dFile < 0 || dFile > 7) continue;
 					if (pieces[dRank][dFile].pieceType != PieceType::None &&
-						pieces[dRank][dFile].color == nextMover) continue;
+						pieces[dRank][dFile].color == color) continue;
 					if (isValidMove({fRank, fFile, dRank, dFile})) return true;
 				}
 			case PieceType::King:
 				if (fRank == baseRank && fFile == 4 &&
 				    pieces[baseRank][4].pieceType == PieceType::King
-				 && pieces[baseRank][4].color == nextMover) {
+				 && pieces[baseRank][4].color == color) {
 					// Castling
 					if (isValidMove({fRank, fFile, fRank, fFile + 2})
 					 || isValidMove({fRank, fFile, fRank, fFile - 2})) {
@@ -1146,17 +1136,22 @@ namespace space {
 					auto offset = directionToOffset(dir);
 					auto dRank = fRank + offset.first;
 					auto dFile = fFile + offset.second;
-					if (isValidMove({ fRank, fFile, dRank, dFile })) return true;
+					if (isValidMove({ fRank, fFile, dRank, dFile })) {
+						// debug << "\tFound move to " << (char)('a' + dFile) << dRank << std::endl;
+						return true;
+					}
 				}
 				break;
 			case PieceType::Pawn:
+				// debug << "Checking pawn moves from: " << (char)(fFile + 'a') << (fRank + 1) << std::endl;
 				// Regular moves and promotions
-				if (isValidMove({ fRank, fFile, fRank + pawnDir, fFile, PieceType::Queen })) return false;
+				if (isValidMove({ fRank, fFile, fRank + pawnDir, fFile })) return true;
+				if (isValidMove({ fRank, fFile, fRank + pawnDir, fFile, PieceType::Queen })) return true;
 				// Two step moves
-				if (fRank == baseRank && isValidMove({ fRank, fFile, fRank + 2 * pawnDir, fFile })) return false;
+				if (fRank == baseRank && isValidMove({ fRank, fFile, fRank + 2 * pawnDir, fFile })) return true;
 				// Captures and enpassant captures
 				for (auto fDiff : { 1, -1 }) {
-					if (isValidMove({ fRank, fFile, fRank + pawnDir, fFile + fDiff })) return false;
+					if (isValidMove({ fRank, fFile, fRank + pawnDir, fFile + fDiff })) return true;
 				}
 				break;
 			default: space_assert(false, "Unknown piece type");
@@ -1166,14 +1161,19 @@ namespace space {
 	}
 
 	bool CBoard::isStaleMate() const {
+		// debug << "Checking stale mate for " << (nextMover == Color::White ? "White" : "Black") << std::endl;
 		if (isUnderCheck(nextMover)) return false;
+		// debug << "Is not under check." << std::endl;
 
 		for (int r = 0; r <= 7; r++) {
 			for (int f = 0; f <= 7; f++) {
 				auto piece = pieces[r][f];
 				if (piece.pieceType == PieceType::None || piece.color != nextMover) continue;
 
-				if (hasLegalMoveFrom({r, f}, nextMover)) return false;
+				if (hasLegalMoveFrom({r, f}, nextMover)) {
+					// debug << "Have move from " << (char)(f + 'a') << (r + 1) << std::endl;
+					return false;
+				}
 			}
 		}
 		return true;

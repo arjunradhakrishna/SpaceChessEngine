@@ -10,7 +10,9 @@
 #include <fstream>
 #include <gtest/gtest.h>
 #include <sstream>
+#include <set>
 #include "test_positions.h"
+#include "stalemates.h"
 
 
 namespace test_utils {
@@ -44,16 +46,16 @@ namespace test_utils {
 		ASSERT_EQ(move, ply.move);
 	}
 
-	void validate_game_moves(space::Game& game) {
+	void validate_game_moves(space::Game& game, bool is_stalemate) {
 		auto board = space::CBoard::fromFen(game.starting_position);
 		// space::debug << board->as_string(true, true) << std::endl;
 		// space::debug << static_cast<space::CBoard*>(board.get())->attackString() << std::endl;
 
 		for (auto ply : game.plies) {
 			// space::debug << ply.move_number
-			        //   << (ply.color == space::Color::White ? ". " : "... ")
-			        //   << ply.move
-			        //   << std::endl;
+			//           << (ply.color == space::Color::White ? ". " : "... ")
+			//           << ply.move
+			//           << std::endl;
 			test_utils::validate_ply(ply);
 
 			auto move = ply.to_move(board.get());
@@ -75,17 +77,10 @@ namespace test_utils {
 			auto board_in_checkmate = board->isCheckMate();
 			auto move_is_checkmate = ply.is_checkmate;
 			ASSERT_EQ(board_in_checkmate, ply.is_checkmate);
-
-			/*
-			auto board_in_stalemate = board->isStaleMate();
-			if (board_in_stalemate) {
-				space::debug << "Game: " << game.metadata["Site"] << std::endl;
-				space::debug << "Is stalemate." << std::endl;
-				space::debug << board->as_string(true, true) << std::endl;
-				space::debug << static_cast<space::CBoard*>(board.get())->attackString() << std::endl;
-			}
-			*/
 		}
+
+		auto board_in_stalemate = board->isStaleMate();
+		ASSERT_EQ(board_in_stalemate, is_stalemate);
 	}
 }
 
@@ -313,9 +308,16 @@ TEST(BoardSuite, PGNParseTest) {
 	f.close();
 
 	for (auto& game : games) {
-		// if (game.metadata["Site"] !=  "https://lichess.org/hnahj9kz") continue;
-		// std::cout << "Validating: " << game.metadata["Site"] << std::endl;
-		test_utils::validate_game_moves(game);
+		// if (game.metadata["Site"] !=  "https://lichess.org/c4s8ru73") continue;
+		std::cout << "Validating: " << game.metadata["Site"] << std::endl;
+
+		auto is_stalemate =
+			std::find(stalemates.begin(), stalemates.end(), game.metadata["Site"]) != stalemates.end();
+		for (auto s : stalemates)
+			if (s == game.metadata["Site"])
+				is_stalemate = true;
+
+		test_utils::validate_game_moves(game, is_stalemate);
 	}
 }
 

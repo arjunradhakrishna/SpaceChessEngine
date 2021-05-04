@@ -69,6 +69,7 @@ namespace space {
 
 		// Initialization
 		static Ptr fromFen(const Fen& fen);
+		static std::unique_ptr<CBoard> fromFenInternal(const Fen& fen);
 		static std::unique_ptr<CBoard> startPosition();
 		std::string attackString() const;
 
