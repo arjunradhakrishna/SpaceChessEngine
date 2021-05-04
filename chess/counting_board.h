@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <memory>
+#include <string>
 #include "board.h"
 #include "direction.h"
 #include "fen.h"
@@ -63,9 +64,10 @@ namespace space {
 		// Moves and updates
 		std::optional<Ptr> updateBoard(Move move) const override;
 		MoveMap getValidMoves() const override {}
+		std::string getValidMoveString() const;
 		bool isValidMove(Move move) const;
 		bool isValidCastle(Move move) const;
-		bool isValidResponseToCheck(Move move, bool checkForPins=true) const;
+		bool isValidResponseToCheck(Move move) const;
 
 		// Initialization
 		static Ptr fromFen(const Fen& fen);

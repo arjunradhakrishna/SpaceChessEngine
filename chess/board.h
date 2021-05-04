@@ -18,6 +18,7 @@ namespace space {
 		Position() : rank(0), file(0) {}
 		Position(int v_rank, int v_file) : rank(v_rank), file(v_file) {}
 		Position(std::string san) : Position(san[1] - '1', san[0] - 'a') { }
+		bool operator==(const Position& other) { return rank == other.rank && file == other.file; }
 	};
 	struct Move {
 		int sourceRank;
@@ -64,6 +65,7 @@ namespace space {
 		) const = 0;
 		virtual std::optional<Ptr> updateBoard(Move move) const = 0;
 		virtual MoveMap getValidMoves() const = 0;
+		virtual std::string getValidMoveString() const = 0;
 		std::string as_string(
 				bool unicode_pieces = false,
 				bool terminal_colors = false,

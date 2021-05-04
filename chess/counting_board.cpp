@@ -3,6 +3,7 @@
 #include "direction.h"
 #include "debug.h"
 #include <sstream>
+#include <string>
 #include <bit>
 #include <cmath>
 #include <iostream>
@@ -600,7 +601,8 @@ namespace space {
 				if (fileDiff == 0 && rankDiff == 1 &&
 					pieces[move.destinationRank][move.destinationFile].pieceType == PieceType::None) break;
 				// Move 2 squares from starting square
-				if (fileDiff == 0 && rankDiff == 2 && move.sourceRank == startRank) break;
+				if (fileDiff == 0 && rankDiff == 2 && move.sourceRank == startRank &&
+					pieces[move.destinationRank][move.destinationFile].pieceType == PieceType::None) break;
 				// Standard capture
 				if (fileDiff == 1 && rankDiff == 1 &&
 				    pieces[move.destinationRank][move.destinationFile].pieceType != PieceType::None &&
@@ -637,7 +639,8 @@ namespace space {
 
 		// Your king is in check and you don't fix it.
 		if (isUnderCheck(nextMover)) {
-			auto valid = isValidResponseToCheck(move, false);
+			auto valid = isValidResponseToCheck(move);
+			if (!valid) return false;
 		}
 
 		return true;
@@ -670,46 +673,90 @@ namespace space {
 		return true;
 	}
 
-	bool CBoard::isValidResponseToCheck(Move move, bool checkForPins) const {
+	bool CBoard::isValidResponseToCheck(Move move) const {
+		// debug << "Checking if "
+		//       << (char)(move.sourceFile + 'a') << (move.sourceRank + 1)
+		// 	  << " "
+		//       << (char)(move.destinationFile + 'a') << (move.destinationRank + 1)
+		// 	  << " is a valid response to check."
+		// 	  << std::endl;
 		auto otherColor = oppositeColor(nextMover);
 		auto movingPieceType = pieces[move.sourceRank][move.sourceFile].pieceType;
+		auto kingPos = kingPosition[(int)nextMover];
+		auto numChecks = std::popcount(attackedByKnight[(int)otherColor][kingPos.rank][kingPos.file]) +
+			std::popcount(attackedBy[(int)otherColor][kingPos.rank][kingPos.file]);
+		Position sourcePosition = { move.sourceRank, move.sourceFile };
+		Position destinationPosition = { move.destinationRank, move.destinationFile };
+		auto [moveDir, moveDist] = getDirectionAndDistance(kingPos, destinationPosition);
+
 		if (movingPieceType == PieceType::King) { // King move
-			return attackedBy[(int)otherColor][move.destinationRank][move.destinationFile] == 0;
+			if (attackedBy[(int)otherColor][move.destinationRank][move.destinationFile]) return false;
+			if (attackedByKnight[(int)otherColor][move.destinationRank][move.destinationFile]) return false;
+
+			for (auto attackingPosition: getAllAttackingPositions(kingPos, otherColor)) {
+				auto attackingPiece = pieces[attackingPosition.rank][attackingPosition.file];
+				if (attackingPiece.pieceType == PieceType::Knight) continue;
+				auto [checkDir, checkDist] = getDirectionAndDistance(attackingPosition, kingPos);
+				// debug << "Check from " << directionToString(checkDir) << "." << std::endl;
+				// debug << "Move to    " << directionToString(moveDir) << "." << std::endl;
+				if (checkDir == moveDir && attackingPiece.pieceType != PieceType::Pawn) return false;
+				if (checkDir == moveDir && move.promotedPiece != PieceType::None) return false;
+				// debug << "\tKing move and is valid." << std::endl;
+			}
+			return true;
 		}
 
 		// If it is a double check, then the king has to move. 
-		auto kingPos = kingPosition[(int)nextMover];
-		auto numKnightChecks = std::popcount(attackedByKnight[(int)otherColor][kingPos.rank][kingPos.file]);
-		auto numOtherChecks = std::popcount(attackedBy[(int)otherColor][kingPos.rank][kingPos.file]);
-		if (numOtherChecks + numKnightChecks > 1) return false;
+		if (numChecks > 1) return false;
+		// debug << "\tNot a double check." << std::endl;
+
+		auto attackingPosition = getAttackingPosition(kingPos, otherColor);
+		auto attackingPiece = pieces[attackingPosition.rank][attackingPosition.file];
 
 		// Also, moving piece cannot be pinned.
-		Position sourcePosition = { move.sourceRank, move.sourceFile };
-		Position destinationPosition = { move.destinationRank, move.destinationFile };
-		if (checkForPins) {
-			if (inDirection(kingPos, sourcePosition)) {
-				// Can be pinned.
-				auto [direction, dist] = getDirectionAndDistance(kingPos, sourcePosition);
-				if (isUnderAttackFromDirection(sourcePosition, otherColor, oppositeDirection(direction))) {
-					return false;
-				}
+		// ?? Use is pinned to king.
+		if (isPinnedToKing(sourcePosition, nextMover)) {
+			// Can be pinned.
+			if (movingPieceType == PieceType::Knight) return false;
+
+			auto [direction, dist] = getDirectionAndDistance(kingPos, sourcePosition);
+			if (moveDir != direction && moveDir != oppositeDirection(direction)) {
+				return false;
 			}
 		}
+		// debug << "\tMoving piece is not pinned." << std::endl;
 
 		// Some other piece moved.
 		// Capture
-		auto attackingPosition = getAttackingPosition(kingPos, otherColor);
+		// debug << "\tCheck is from " << (char)(attackingPosition.file + 'a') << (attackingPosition.rank + 1)
+		    //   << "." << std::endl;
 		if (attackingPosition.rank == move.destinationRank &&
 			attackingPosition.file == move.destinationFile) {
+			// debug << "\tMoving piece captures attacking piece." << std::endl;
+			return true;
+		} else if (
+			enPassantSquare.has_value() && destinationPosition == enPassantSquare.value() &&
+			attackingPosition.file == enPassantSquare.value().file &&
+			attackingPosition.rank == (nextMover == Color::White ? 4 : 3)
+			&& movingPieceType == PieceType::Pawn) {
+			// debug << "\tEnpassant capture." << std::endl;
 			return true;
 		}
 
 		// Blocks
-		if (inDirection(kingPos, destinationPosition) && inDirection(kingPos, attackingPosition)) {
-			auto [blockDir, blockDist] = getDirectionAndDistance(kingPos, destinationPosition);
-			auto [attackDir, attackDist] = getDirectionAndDistance(kingPos, destinationPosition);
-			if (blockDir == attackDir && blockDist <= attackDist) return true;
+		// Can't block knight checks.
+		if (attackingPiece.pieceType != PieceType::Knight) {
+			if (inDirection(kingPos, destinationPosition) && inDirection(kingPos, attackingPosition)) {
+				auto [blockDir, blockDist] = getDirectionAndDistance(kingPos, destinationPosition);
+				auto [attackDir, attackDist] = getDirectionAndDistance(kingPos, attackingPosition);
+				if (blockDir == attackDir && blockDist <= attackDist) {
+					// debug << "\tMoving piece blocks check." << std::endl;
+					return true;
+				}
+			}
 		}
+
+		// debug << "\tNot a valid response." << std::endl;
 
 		return false;
 	}
@@ -1177,5 +1224,52 @@ namespace space {
 			}
 		}
 		return true;
+	}
+
+	std::string CBoard::getValidMoveString() const {
+		auto backRank = nextMover == Color::White ? 7 : 0;
+		std::vector<Move> result;
+		for (auto sr = 0; sr <= 7; sr++)
+		for (auto sf = 0; sf <= 7; sf++) {
+			if (pieces[sr][sf].pieceType == PieceType::None || pieces[sr][sf].color != nextMover) continue;
+			for (auto dr = 0; dr <= 7; dr++)
+			for (auto df = 0; df <= 7; df++) {
+				if (pieces[sr][sf].pieceType == PieceType::Pawn && dr == backRank) {
+					for (auto pieceType : { PieceType::Queen, PieceType::Rook, PieceType::Knight, PieceType::Bishop}) {
+						auto m = Move(sr, sf, dr, df, pieceType);
+						if (isValidMove(m)) result.push_back(m);
+					}
+				}
+				else {
+					auto m = Move(sr, sf, dr, df);
+					if (isValidMove(m)) result.push_back(m);
+				}
+			}
+		}
+
+		std::vector<std::string> resultStr;
+		for (auto m : result) {
+			std::stringstream ss;
+			auto sr = m.sourceRank;
+			auto sf = m.sourceFile;
+			auto dr = m.destinationRank;
+			auto df = m.destinationFile;
+			ss << (char)(sf + 'a') << (sr+1);
+			ss << (char)(df + 'a') << (dr+1);
+			switch (m.promotedPiece) {
+				case PieceType::Queen: ss << 'q'; break;
+				case PieceType::Rook: ss << 'r'; break;
+				case PieceType::Bishop: ss << 'b'; break;
+				case PieceType::Knight: ss << 'n'; break;
+			}
+			resultStr.push_back(ss.str());
+		}
+
+		sort(resultStr.begin(), resultStr.end());
+
+		std::stringstream ss;
+		for (auto s : resultStr) ss << s << " ";
+
+		return ss.str();
 	}
 }

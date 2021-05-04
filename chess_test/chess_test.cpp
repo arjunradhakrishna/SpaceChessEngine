@@ -52,10 +52,12 @@ namespace test_utils {
 		// space::debug << static_cast<space::CBoard*>(board.get())->attackString() << std::endl;
 
 		for (auto ply : game.plies) {
-			// space::debug << ply.move_number
-			//           << (ply.color == space::Color::White ? ". " : "... ")
-			//           << ply.move
-			//           << std::endl;
+			std::cout << board->getValidMoveString() << std::endl;
+
+			space::debug << ply.move_number
+			          << (ply.color == space::Color::White ? ". " : "... ")
+			          << ply.move
+			          << std::endl;
 			test_utils::validate_ply(ply);
 
 			auto move = ply.to_move(board.get());
@@ -78,6 +80,7 @@ namespace test_utils {
 			auto move_is_checkmate = ply.is_checkmate;
 			ASSERT_EQ(board_in_checkmate, ply.is_checkmate);
 		}
+		std::cout << board->getValidMoveString() << std::endl;
 
 		auto board_in_stalemate = board->isStaleMate();
 		ASSERT_EQ(board_in_stalemate, is_stalemate);
@@ -294,34 +297,7 @@ TEST(AlgoSuite, AlgoLinearTest) {
 
 
 }
-*/
 
-TEST(BoardSuite, PGNParseTest) {
-	using namespace space;
-
-	auto f = std::fstream(
-		"games/lichess_db_standard_rated_2013-01.pgn",
-		std::ios_base::in
-	);
-	// auto games = PGN::parse_many(f, 10000);
-	auto games = PGN::parse_all(f);
-	f.close();
-
-	for (auto& game : games) {
-		// if (game.metadata["Site"] !=  "https://lichess.org/c4s8ru73") continue;
-		std::cout << "Validating: " << game.metadata["Site"] << std::endl;
-
-		auto is_stalemate =
-			std::find(stalemates.begin(), stalemates.end(), game.metadata["Site"]) != stalemates.end();
-		for (auto s : stalemates)
-			if (s == game.metadata["Site"])
-				is_stalemate = true;
-
-		test_utils::validate_game_moves(game, is_stalemate);
-	}
-}
-
-/*
 TEST(BoardSuite, PGNParseFromPositionTest) {
 	using namespace space;
 
@@ -349,3 +325,24 @@ TEST(CBoardSuite, Initialization) {
 	debug << board2.attackString() << std::endl;
 }
 */
+
+TEST(BoardSuite, PGNParseTest) {
+	using namespace space;
+
+	auto f = std::fstream(
+		"games/lichess_db_standard_rated_2013-01.pgn",
+		std::ios_base::in
+	);
+	auto games = PGN::parse_many(f, 100);
+	// auto games = PGN::parse_all(f);
+	f.close();
+
+	for (auto& game : games) {
+		if (game.metadata["Site"] !=  "https://lichess.org/5dpjox73") continue;
+		std::cout << game.metadata["Site"] << std::endl;
+		auto is_stalemate =
+			std::find(stalemates.begin(), stalemates.end(), game.metadata["Site"]) != stalemates.end();
+
+		test_utils::validate_game_moves(game, is_stalemate);
+	}
+}
