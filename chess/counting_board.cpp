@@ -572,6 +572,7 @@ namespace space {
 		}
 
 		// Move semantics
+		auto isEnPassant = false;
 		auto rankDiff = abs(move.sourceRank - move.destinationRank);
 		auto fileDiff = abs(move.sourceFile - move.destinationFile);
 		auto isOrtho = fileDiff == 0 || rankDiff == 0;
@@ -610,7 +611,10 @@ namespace space {
 				// Enpassant capture
 				if (fileDiff == 1 && rankDiff == 1 && enPassantSquare.has_value() &&
 				    move.destinationRank == enPassantSquare.value().rank &&
-				    move.destinationFile == enPassantSquare.value().file) break;
+				    move.destinationFile == enPassantSquare.value().file) {
+						isEnPassant = true;
+						break;
+				}
 				return false;
 		}
 
@@ -635,6 +639,22 @@ namespace space {
 			auto [ sourceDir, sourceDist ] = getDirectionAndDistance(kingPos, sourcePosition);
 			auto [ destDir, destDist ] = getDirectionAndDistance(kingPos, destinationPosition);
 			if (sourceDir != destDir) return false;
+		}
+
+		// This is a very special case. En passant is the only move that can remove
+		// two pieces from a line. So, we can have issues even if the pawn is not pinned.
+		if (isEnPassant && kingPos.rank == sourcePosition.rank) {
+			auto dir = kingPos.file < sourcePosition.file ? 1 : -1;
+			for (int fDiff = 1; fDiff <= 7; fDiff++) {
+				auto f = kingPos.file + dir * fDiff;
+				if (f < 0 || f > 7) break;
+				auto piece = pieces[kingPos.rank][f];
+				if (piece.pieceType == PieceType::None) continue; // Skip empty squares
+				if (f == sourcePosition.file || f == destinationPosition.file) continue; // Skip en-passant stuff
+				if (piece.color == nextMover) break; // Found piece of same color.
+				if (piece.pieceType == PieceType::Rook || piece.pieceType == PieceType::Queen) return false;
+				break; // Found piece of other color, but not rook or queen
+			}
 		}
 
 		// Your king is in check and you don't fix it.
