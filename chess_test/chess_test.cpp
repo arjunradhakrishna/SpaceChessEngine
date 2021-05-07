@@ -47,13 +47,13 @@ namespace test_utils {
 	}
 
 	void validate_game_moves(space::Game& game, bool is_stalemate) {
-		std::shared_ptr<space::IBoard> board = space::BoardImpl::fromFen(game.starting_position);
+		std::shared_ptr<space::IBoard> board = space::CBoard::fromFen(game.starting_position);
 		// std::shared_ptr<space::IBoard> board = std::move(space::CBoard::fromFen(game.starting_position));
 		// space::debug << board->as_string(true, true) << std::endl;
 		// space::debug << static_cast<space::CBoard*>(board.get())->attackString() << std::endl;
 
 		for (auto ply : game.plies) {
-			// ((space::BoardImpl*)board.get())->getValidMoveList();
+			// ((space::CBoard*)board.get())->getValidMoveList();
 			std::cout << board->getValidMoveString() << std::endl;
 
 			// std::cout << ply.move_number
