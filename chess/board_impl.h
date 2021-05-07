@@ -24,7 +24,7 @@ namespace space {
 		) const override;
 		std::optional<Ptr> updateBoard(Move move) const override;
 		MoveMap getValidMoves() const override;
-		std::string getValidMoveString() const override {};
+		std::string getValidMoveString() const override;
 
 		static Ptr getStartingBoard();
 		static Ptr fromFen(const Fen& fen);

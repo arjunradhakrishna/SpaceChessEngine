@@ -47,15 +47,16 @@ namespace test_utils {
 	}
 
 	void validate_game_moves(space::Game& game, bool is_stalemate) {
-		std::shared_ptr<space::IBoard> board = std::move(space::CBoard::fromFen(game.starting_position));
+		std::shared_ptr<space::IBoard> board = space::BoardImpl::fromFen(game.starting_position);
+		// std::shared_ptr<space::IBoard> board = std::move(space::CBoard::fromFen(game.starting_position));
 		// space::debug << board->as_string(true, true) << std::endl;
 		// space::debug << static_cast<space::CBoard*>(board.get())->attackString() << std::endl;
 
 		for (auto ply : game.plies) {
-			// std::cout << board->getValidMoveString() << std::endl;
-			((space::CBoard*)board.get())->getValidMoveList();
+			// ((space::BoardImpl*)board.get())->getValidMoveList();
+			std::cout << board->getValidMoveString() << std::endl;
 
-			// space::debug << ply.move_number
+			// std::cout << ply.move_number
 			//           << (ply.color == space::Color::White ? ". " : "... ")
 			//           << ply.move
 			//           << std::endl;
@@ -81,8 +82,8 @@ namespace test_utils {
 			auto move_is_checkmate = ply.is_checkmate;
 			ASSERT_EQ(board_in_checkmate, ply.is_checkmate);
 		}
-		((space::CBoard*)board.get())->getValidMoveList();
-		// std::cout << board->getValidMoveString() << std::endl;
+		// ((space::CBoard*)board.get())->getValidMoveList();
+		std::cout << board->getValidMoveString() << std::endl;
 
 		auto board_in_stalemate = board->isStaleMate();
 		ASSERT_EQ(board_in_stalemate, is_stalemate);

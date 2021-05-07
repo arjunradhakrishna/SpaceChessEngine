@@ -6,6 +6,7 @@
 #include <stdexcept>
 #include <vector>
 #include <memory>
+#include <cmath>
 
 namespace {
 
@@ -392,6 +393,35 @@ namespace space {
 	}
 
 
+	std::string BoardImpl::getValidMoveString() const {
+		auto result = getValidMoves();
+
+		std::vector<std::string> resultStr;
+		for (auto mb : result) {
+			Move m = mb.first;
+			std::stringstream ss;
+			auto sr = m.sourceRank;
+			auto sf = m.sourceFile;
+			auto dr = m.destinationRank;
+			auto df = m.destinationFile;
+			ss << (char)(sf + 'a') << (sr+1);
+			ss << (char)(df + 'a') << (dr+1);
+			switch (m.promotedPiece) {
+				case PieceType::Queen: ss << 'q'; break;
+				case PieceType::Rook: ss << 'r'; break;
+				case PieceType::Bishop: ss << 'b'; break;
+				case PieceType::Knight: ss << 'n'; break;
+			}
+			resultStr.push_back(ss.str());
+		}
+
+		sort(resultStr.begin(), resultStr.end());
+
+		std::stringstream ss;
+		for (auto s : resultStr) ss << s << " ";
+
+		return ss.str();
+	}
 
 	// only valid moves which doesnt put King in check-mate position
 	// For castling, we examine all check conditions here
@@ -413,8 +443,9 @@ namespace space {
 			if (this->m_pieces[m.sourceRank][m.sourceFile].pieceType == PieceType::King &&
 				abs(m.destinationFile - m.sourceFile) == 2   //Castling
 				) {
-				int castledir = (m.sourceFile - m.destinationFile) / 2;
+				int castledir = (m.destinationFile - m.sourceFile) / 2;
 				if (this->isUnderCheck(color) ||
+					this->isUnderCheck(color, Position(m.sourceRank, m.sourceFile + 2*castledir)) ||
 					this->isUnderCheck(color, Position(m.sourceRank, m.sourceFile + castledir))
 					)
 					continue;
@@ -862,14 +893,28 @@ namespace space {
 		// Castling: denoted by king moving two steps in left/right
 
 		int direction = (c == Color::White) ? 1 : -1;
+		int baseRank = (c == Color::White) ? 0 : 7;
 
 		if (t == PieceType::King && canCastleLeft(c))
 		{
-			moves.push_back({ rank, file, rank, file - 2 * direction });
+			// Everything between king and rook should be clear.
+			auto rookFile = (c == Color::White) ? 0 : 7;
+			auto clear = true;
+			for (auto i = std::min(rookFile, 4) + 1; i < std::max(rookFile, 4); i++) {
+				if (m_pieces[baseRank][i].pieceType != PieceType::None) clear = false;
+			}
+			if (clear)
+				moves.push_back({ rank, file, rank, file - 2 * direction });
 		}
 
 		if (t == PieceType::King && canCastleRight(c))
 		{
+			auto rookFile = (c == Color::White) ? 7 : 0;
+			auto clear = true;
+			for (auto i = std::min(rookFile, 4) + 1; i < std::max(rookFile, 4); i++) {
+				if (m_pieces[baseRank][i].pieceType != PieceType::None) clear = false;
+			}
+			if (clear)
 			moves.push_back({ rank, file, rank, file + 2 * direction });
 		}
 
