@@ -75,6 +75,40 @@ namespace {
 		}
 		return { direction, distance };
 	}
+
+	inline const std::vector<Direction>& getMoveDirections(const PieceType pieceType) {
+		switch (pieceType) {
+			case PieceType::Queen: 
+			case PieceType::King:
+				return allDirections;
+			case PieceType::Rook:
+				return cardinalDirections;
+			case PieceType::Bishop:
+				return diagonalDirections;
+			case PieceType::Knight:
+			case PieceType::Pawn:
+			default:
+				space_fail("Calling get directions on non-directional piece.");
+		}
+	}
+
+	inline const bool isLongPiece(const PieceType pieceType) {
+		return pieceType == PieceType::Queen
+			|| pieceType == PieceType::Rook
+			|| pieceType == PieceType::Bishop;
+	}
+
+	bool isClearBetween(const CBoard* board, const Position& sourcePosition, const Position& destinationPosition) {
+		auto [dir, distance] = getDirectionAndDistance(sourcePosition, destinationPosition);
+		auto offset = directionToOffset(dir);
+		auto sourceRank = sourcePosition.rank;
+		auto sourceFile = sourcePosition.file;
+		for (auto i = 1; i < distance; i++) {
+			auto p = board->getPiece({ sourceRank + i * offset.first, sourceFile + i * offset.second });
+			if (p.has_value()) return false;
+		}
+		return true;
+	}
 }
 
 // Trivial CBoard functions
@@ -116,157 +150,9 @@ namespace space {
 		auto dir = color == Color::White ? ShortCastle : LongCastle;
 		return castlingRightsForColor[dir];
 	}
-}
-
-// Boiler plate stuff
-namespace space {
-	using namespace space::squares;
 
 	std::unique_ptr<CBoard> CBoard::startPosition() {
-		auto board = std::make_unique<CBoard>();
-
-		// Who moves
-		board->nextMover = Color::White;
-
-		// Initial empty squares
-		for (auto f = 0; f <= 7; f++)
-			for (auto r = 0; r <= 7; r++)
-				board->pieces[r][f] = { PieceType::None, Color::White };
-
-		// Initial white pieces
-		board->pieces[a1.rank][a1.file] = board->pieces[h1.rank][h1.file] = { PieceType::Rook, Color::White };
-		board->pieces[b1.rank][b1.file] = board->pieces[g1.rank][g1.file] = { PieceType::Knight, Color::White };
-		board->pieces[c1.rank][c1.file] = board->pieces[f1.rank][f1.file] = { PieceType::Bishop, Color::White };
-		board->pieces[d1.rank][d1.file] = { PieceType::Queen, Color::White };
-		board->pieces[e1.rank][e1.file] = { PieceType::King, Color::White };
-		for (auto f = 0; f <= 7; f++) board->pieces[1][f] = { PieceType::Pawn, Color::White };
-
-		// Initial black pieces
-		board->pieces[a8.rank][a8.file] = board->pieces[h8.rank][h8.file] = { PieceType::Rook, Color::Black };
-		board->pieces[b8.rank][b8.file] = board->pieces[g8.rank][g8.file] = { PieceType::Knight, Color::Black };
-		board->pieces[c8.rank][c8.file] = board->pieces[f8.rank][f8.file] = { PieceType::Bishop, Color::Black };
-		board->pieces[d8.rank][d8.file] = { PieceType::Queen, Color::Black };
-		board->pieces[e8.rank][e8.file] = { PieceType::King, Color::Black };
-		for (auto f = 0; f <= 7; f++) board->pieces[6][f] = { PieceType::Pawn, Color::Black };
-
-		// King positions
-		board->kingPosition[(int)Color::White] = e1;
-		board->kingPosition[(int)Color::Black] = e8;
-
-
-		// Castling rights
-		board->castlingRights[(int)Color::White][ShortCastle] = true;
-		board->castlingRights[(int)Color::White][LongCastle]  = true;
-		board->castlingRights[(int)Color::Black][ShortCastle] = true;
-		board->castlingRights[(int)Color::Black][LongCastle]  = true;
-
-		// Attacked by and attacked by knight
-		for (auto r = 0; r <= 7; r++) {
-			for (auto f = 0; f <= 7; f++) {
-				board->attackedBy[(int)Color::White][r][f] = 0;
-				board->attackedBy[(int)Color::Black][r][f] = 0;
-				board->attackedByKnight[(int)Color::White][r][f] = 0;
-				board->attackedByKnight[(int)Color::Black][r][f] = 0;
-			}
-		}
-
-		// Rank 1
-		// a1 not attacked
-		// b1 by rook on a1
-		board->attackedBy[(int)Color::White][b1.rank][b1.file] = Direction::West;
-		// c1 by queen on d1
-		board->attackedBy[(int)Color::White][c1.rank][c1.file] = Direction::East;
-		// d1 by king on e1
-		board->attackedBy[(int)Color::White][d1.rank][d1.file] = Direction::East;
-		// e1 by queen on d1
-		board->attackedBy[(int)Color::White][e1.rank][e1.file] = Direction::West;
-		// f1 by king on e1
-		board->attackedBy[(int)Color::White][f1.rank][f1.file] = Direction::West;
-		// g1 by king on h1
-		board->attackedBy[(int)Color::White][g1.rank][g1.file] = Direction::East;
-		// h1 not attacked
-
-		// Rank 2
-		// a2 by rook on a1
-		board->attackedBy[(int)Color::White][a2.rank][a2.file] = Direction::South;
-		// b2 by bishop on c1
-		board->attackedBy[(int)Color::White][b2.rank][b2.file] = Direction::SouthEast;
-		// c2 by queen on d1
-		board->attackedBy[(int)Color::White][c2.rank][c2.file] = Direction::SouthEast;
-		// d2 by bishop on d1, king on e1, bishop on c1, knight on b1
-		board->attackedBy[(int)Color::White][d2.rank][d2.file] = 
-			Direction::SouthWest | Direction::South | Direction::SouthEast;
-		board->attackedByKnight[(int)Color::White][d2.rank][d2.file] = KnightDirection::Clock08;
-		// e2 by bishop on f1, king on e1, queen on d1 , knight on b1
-		board->attackedBy[(int)Color::White][e2.rank][e2.file] = 
-			Direction::SouthWest | Direction::South | Direction::SouthEast;
-		board->attackedByKnight[(int)Color::White][e2.rank][e2.file] = KnightDirection::Clock04;
-		// f2 by king on e1
-		board->attackedBy[(int)Color::White][f2.rank][f2.file] = Direction::SouthWest;
-		// g2 by bishop on f1
-		board->attackedBy[(int)Color::White][g2.rank][g2.file] = Direction::SouthWest;
-		// h2 by rook on h1
-		board->attackedBy[(int)Color::White][h2.rank][h2.file] = Direction::South;
-
-		// Rank 3
-		for (auto f = 1; f <= 6; f++)
-			board->attackedBy[(int)Color::White][2][f] = Direction::SouthEast | Direction::SouthWest;
-		board->attackedBy[(int)Color::White][2][0] = Direction::SouthEast;
-		board->attackedBy[(int)Color::White][2][7] = Direction::SouthWest;
-		board->attackedByKnight[(int)Color::White][2][0] = KnightDirection::Clock05;
-		board->attackedByKnight[(int)Color::White][2][2] = KnightDirection::Clock07;
-		board->attackedByKnight[(int)Color::White][2][5] = KnightDirection::Clock05;
-		board->attackedByKnight[(int)Color::White][2][7] = KnightDirection::Clock07;
-
-		// Rank 6
-		for (auto f = 1; f <= 6; f++)
-			board->attackedBy[(int)Color::Black][5][f] = Direction::NorthEast | Direction::NorthWest;
-		board->attackedBy[(int)Color::Black][5][0] = Direction::NorthEast;
-		board->attackedBy[(int)Color::Black][5][7] = Direction::NorthWest;
-		board->attackedByKnight[(int)Color::Black][5][0] = KnightDirection::Clock01;
-		board->attackedByKnight[(int)Color::Black][5][2] = KnightDirection::Clock11;
-		board->attackedByKnight[(int)Color::Black][5][5] = KnightDirection::Clock01;
-		board->attackedByKnight[(int)Color::Black][5][7] = KnightDirection::Clock11;
-
-		// Rank 7
-		// a7 by rook on a8
-		board->attackedBy[(int)Color::Black][a7.rank][a7.file] = Direction::North;
-		// b7 by bishop on c8
-		board->attackedBy[(int)Color::Black][b7.rank][b7.file] = Direction::NorthEast;
-		// c7 by queen on d8
-		board->attackedBy[(int)Color::Black][c7.rank][c7.file] = Direction::NorthEast;
-		// d7 by bishop on d8, king on e8, bishop on c8, knight on b8
-		board->attackedBy[(int)Color::Black][d7.rank][d7.file] = 
-			Direction::NorthWest | Direction::North | Direction::NorthEast;
-		board->attackedByKnight[(int)Color::Black][d7.rank][d7.file] = KnightDirection::Clock10;
-		// e7 by bishop on f8, king on e8, queen on d8 , knight on b8
-		board->attackedBy[(int)Color::Black][e7.rank][e7.file] = 
-			Direction::NorthWest | Direction::North | Direction::NorthEast;
-		board->attackedByKnight[(int)Color::Black][e7.rank][e7.file] = KnightDirection::Clock02;
-		// f7 by king on e8
-		board->attackedBy[(int)Color::Black][f7.rank][f7.file] = Direction::NorthWest;
-		// g7 by bishop on f8
-		board->attackedBy[(int)Color::Black][g7.rank][g7.file] = Direction::NorthWest;
-		// h7 by rook on h8
-		board->attackedBy[(int)Color::Black][h7.rank][h7.file] = Direction::North;
-
-		// Rank 8
-		// a8 not attacked
-		// b8 by rook on a8
-		board->attackedBy[(int)Color::Black][b8.rank][b8.file] = Direction::West;
-		// c8 by queen on d8
-		board->attackedBy[(int)Color::Black][c8.rank][c8.file] = Direction::East;
-		// d8 by king on e8
-		board->attackedBy[(int)Color::Black][d8.rank][d8.file] = Direction::East;
-		// e8 by queen on d8
-		board->attackedBy[(int)Color::Black][e8.rank][e8.file] = Direction::West;
-		// f8 by king on e8
-		board->attackedBy[(int)Color::Black][f8.rank][f8.file] = Direction::West;
-		// g8 by king on h8
-		board->attackedBy[(int)Color::Black][g8.rank][g8.file] = Direction::East;
-		// h8 not attacked
-
-		return board;
+		return fromFen(Fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"));
 	}
 
 	std::unique_ptr<CBoard> CBoard::clone() const {
@@ -278,6 +164,59 @@ namespace space {
 		newBoard->attackedBy = attackedBy;
 		newBoard->attackedByKnight = attackedByKnight;
 		return newBoard;
+	}
+
+	std::unique_ptr<CBoard> CBoard::fromFen(const Fen& fen) {
+		auto board = std::make_unique<CBoard>();
+
+		auto ss = std::stringstream(fen.fen);
+
+		std::string pieces; ss >> pieces;
+		auto rank = 7;
+		auto file = 0;
+		for (auto c : pieces) {
+			if (c == '/') {
+				rank -= 1;
+				file = 0;
+			}
+			else if (c >= '1' && c <= '8') {
+				int skips = c - '0';
+				for (int i = 0; i < skips; i++) {
+					board->pieces[rank][file + i] = { PieceType::None, Color::White };
+				}
+				file += skips;
+			}
+			else if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
+				auto color = (c >= 'a' && c <= 'z') ? Color::Black : Color::White;
+				auto pieceType = toPieceType(c);
+				board->pieces[rank][file] = { pieceType, color };
+				if (pieceType == PieceType::King) {
+					board->kingPosition[(int)color] = { rank, file };
+				}
+				file += 1;
+			}
+		}
+
+		char mover; ss >> mover;
+		board->nextMover = mover == 'w' ? Color::White : Color::Black;
+
+		std::string castling; ss >> castling;
+		for (auto c : castling) {
+			if (c == 'K') board->castlingRights[(int)Color::White][ShortCastle] = true;
+			if (c == 'Q') board->castlingRights[(int)Color::White][LongCastle] = true;
+			if (c == 'k') board->castlingRights[(int)Color::Black][ShortCastle] = true;
+			if (c == 'q') board->castlingRights[(int)Color::Black][LongCastle] = true;
+		}
+
+		std::string enpassant; ss >> enpassant;
+		if (enpassant != "-") {
+			auto enpassantFile = enpassant[0] - 'a';
+			auto enpassantRank = enpassant[1] - '1';
+			board->enPassantSquare = { enpassantRank, enpassantFile };
+		}
+
+		board->updateUnderAttack();
+		return board;
 	}
 
 	std::string CBoard::attackString() const {
@@ -351,13 +290,15 @@ namespace space {
 		}
 		return ss.str();
 	}
+}
+
+namespace space {
+	using namespace space::squares;
 
 	void CBoard::updateUnderAttack() {
-		for (auto r = 0; r <= 7; r++) {
-			for (auto f = 0; f <= 7; f++) {
+		for (auto r = 0; r <= 7; r++)
+			for (auto f = 0; f <= 7; f++)
 				updateUnderAttackFrom({r, f});
-			}
-		}
 	}
 
 	void CBoard::updateUnderAttackFrom(Position position) {
@@ -369,19 +310,28 @@ namespace space {
 		auto f = position.file;
 
 		// Bishop, Rook, Queen
-		auto& directions =
-			(piece.pieceType == PieceType::Queen)  ? allDirections : (
-			(piece.pieceType == PieceType::Rook)   ? cardinalDirections : (
-			(piece.pieceType == PieceType::Bishop) ? diagonalDirections : (
-			noDirections)));
-		for (auto direction : directions) {
-			auto offset = directionToOffset(direction);
-			for (int cr = r + offset.first, cf = f + offset.second;
-			     cr >= 0 && cr <= 7 && cf >= 0 && cf <= 7;
-				 cr += offset.first, cf += offset.second
-			) {
+		if (isLongPiece(piece.pieceType)) {
+			for (auto direction : getMoveDirections(piece.pieceType)) {
+				auto offset = directionToOffset(direction);
+				for (int cr = r + offset.first, cf = f + offset.second;
+					cr >= 0 && cr <= 7 && cf >= 0 && cf <= 7;
+					cr += offset.first, cf += offset.second
+				) {
+					attackedBy[(int)piece.color][cr][cf] |= oppositeDirection(direction);
+					if (pieces[cr][cf].pieceType != PieceType::None) break;
+				}
+			}
+		}
+
+
+		// Kings
+		if (piece.pieceType == PieceType::King) {
+			for (auto direction : allDirections) {
+				auto offset = directionToOffset(direction);
+				auto cr = r + offset.first;
+				auto cf = f + offset.second;
+				if (cr < 0 || cr > 7 || cf < 0 || cf > 7) continue;
 				attackedBy[(int)piece.color][cr][cf] |= oppositeDirection(direction);
-				if (pieces[cr][cf].pieceType != PieceType::None) break;
 			}
 		}
 
@@ -393,17 +343,6 @@ namespace space {
 				auto cf = f + offset.second;
 				if (cr < 0 || cr > 7 || cf < 0 || cf > 7) continue;
 				attackedByKnight[(int)piece.color][cr][cf] |= oppositeKnightDirection(kdirection);
-			}
-		}
-
-		// Kings
-		if (piece.pieceType == PieceType::King) {
-			for (auto direction : allDirections) {
-				auto offset = directionToOffset(direction);
-				auto cr = r + offset.first;
-				auto cf = f + offset.second;
-				if (cr < 0 || cr > 7 || cf < 0 || cf > 7) continue;
-				attackedBy[(int)piece.color][cr][cf] |= oppositeDirection(direction);
 			}
 		}
 
@@ -419,59 +358,6 @@ namespace space {
 				attackedBy[(int)piece.color][cr][cf] |= oppositeDirection(direction);
 			}
 		}
-	}
-
-	IBoard::Ptr CBoard::fromFen(const Fen& fen) {
-		auto board = std::make_unique<CBoard>();
-
-		auto ss = std::stringstream(fen.fen);
-
-		std::string pieces; ss >> pieces;
-		auto rank = 7;
-		auto file = 0;
-		for (auto c : pieces) {
-			if (c == '/') {
-				rank -= 1;
-				file = 0;
-			}
-			else if (c >= '1' && c <= '8') {
-				int skips = c - '0';
-				for (int i = 0; i < skips; i++) {
-					board->pieces[rank][file + i] = { PieceType::None, Color::White };
-				}
-				file += skips;
-			}
-			else if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
-				auto color = (c >= 'a' && c <= 'z') ? Color::Black : Color::White;
-				auto pieceType = toPieceType(c);
-				board->pieces[rank][file] = { pieceType, color };
-				if (pieceType == PieceType::King) {
-					board->kingPosition[(int)color] = { rank, file };
-				}
-				file += 1;
-			}
-		}
-
-		char mover; ss >> mover;
-		board->nextMover = mover == 'w' ? Color::White : Color::Black;
-
-		std::string castling; ss >> castling;
-		for (auto c : castling) {
-			if (c == 'K') board->castlingRights[(int)Color::White][ShortCastle] = true;
-			if (c == 'Q') board->castlingRights[(int)Color::White][LongCastle] = true;
-			if (c == 'k') board->castlingRights[(int)Color::Black][ShortCastle] = true;
-			if (c == 'q') board->castlingRights[(int)Color::Black][LongCastle] = true;
-		}
-
-		std::string enpassant; ss >> enpassant;
-		if (enpassant != "-") {
-			auto enpassantFile = enpassant[0] - 'a';
-			auto enpassantRank = enpassant[1] - '1';
-			board->enPassantSquare = { enpassantRank, enpassantFile };
-		}
-
-		board->updateUnderAttack();
-		return board;
 	}
 
 	std::optional<IBoard::Ptr> CBoard::updateBoard(Move move) const {
@@ -559,8 +445,9 @@ namespace space {
 		// Trivial things.
 		if (move.destinationRank < 0 || move.destinationRank > 7) return false;
 		if (move.destinationFile < 0 || move.destinationFile > 7) return false;
-		if (move.destinationRank < 0 || move.destinationRank > 7) return false;
-		if (move.destinationFile < 0 || move.destinationFile > 7) return false;
+		if (move.sourceRank < 0 || move.sourceRank > 7) return false;
+		if (move.sourceFile < 0 || move.sourceFile > 7) return false;
+
 		auto movingPiece = pieces[move.sourceRank][move.sourceFile];
 		auto movingPieceType = movingPiece.pieceType;
 		auto capturedPiece = pieces[move.destinationRank][move.destinationFile];
@@ -621,15 +508,8 @@ namespace space {
 		Position sourcePosition {move.sourceRank, move.sourceFile};
 		Position destinationPosition {move.destinationRank, move.destinationFile};
 		// Not jumping over pieces (unless knight)
-		if (movingPieceType != PieceType::Knight) {
-			// Everything between start and destination square should be empty.
-			auto [dir, distance] = getDirectionAndDistance(sourcePosition, destinationPosition);
-			auto offset = directionToOffset(dir);
-			for (auto i = 1; i < distance; i++) {
-				auto p = pieces[move.sourceRank + i * offset.first][move.sourceFile + i * offset.second];
-				if (p.pieceType != PieceType::None) return false;
-			}
-		}
+		if (movingPieceType != PieceType::Knight && !isClearBetween(this, sourcePosition, destinationPosition))
+			return false;
 
 		// Some piece that was pinned to the king moves off that
 		// file, rank, or diagonal.
@@ -658,10 +538,7 @@ namespace space {
 		}
 
 		// Your king is in check and you don't fix it.
-		if (isUnderCheck(nextMover)) {
-			auto valid = isValidResponseToCheck(move);
-			if (!valid) return false;
-		}
+		if (isUnderCheck(nextMover) && !isValidResponseToCheck(move)) return false;
 
 		return true;
 	}
@@ -675,9 +552,8 @@ namespace space {
 
 		// Everything between king and rook should be empty.
 		auto rookFile = castleType == ShortCastle ? 7 : 0;
-		for (int f = std::min(rookFile, 4) + 1; f < std::max(rookFile, 4); f++) {
-			if (pieces[move.sourceRank][f].pieceType != PieceType::None) return false;
-		}
+		if (!isClearBetween(this, {move.sourceRank, rookFile}, {move.sourceRank, move.sourceFile}))
+			return false;
 
 		// King should not castle out of, through, or in to check.
 		auto attackingColor = oppositeColor(nextMover);
@@ -694,12 +570,6 @@ namespace space {
 	}
 
 	bool CBoard::isValidResponseToCheck(Move move) const {
-		// debug << "Checking if "
-		//       << (char)(move.sourceFile + 'a') << (move.sourceRank + 1)
-		// 	  << " "
-		//       << (char)(move.destinationFile + 'a') << (move.destinationRank + 1)
-		// 	  << " is a valid response to check."
-		// 	  << std::endl;
 		auto otherColor = oppositeColor(nextMover);
 		auto movingPieceType = pieces[move.sourceRank][move.sourceFile].pieceType;
 		auto kingPos = kingPosition[(int)nextMover];
@@ -717,66 +587,53 @@ namespace space {
 				auto attackingPiece = pieces[attackingPosition.rank][attackingPosition.file];
 				if (attackingPiece.pieceType == PieceType::Knight) continue;
 				auto [checkDir, checkDist] = getDirectionAndDistance(attackingPosition, kingPos);
-				// debug << "Check from " << directionToString(checkDir) << "." << std::endl;
-				// debug << "Move to    " << directionToString(moveDir) << "." << std::endl;
 				if (checkDir == moveDir && attackingPiece.pieceType != PieceType::Pawn) return false;
 				if (checkDir == moveDir && move.promotedPiece != PieceType::None) return false;
-				// debug << "\tKing move and is valid." << std::endl;
 			}
 			return true;
 		}
 
 		// If it is a double check, then the king has to move. 
 		if (numChecks > 1) return false;
-		// debug << "\tNot a double check." << std::endl;
 
 		auto attackingPosition = getAttackingPosition(kingPos, otherColor);
 		auto attackingPiece = pieces[attackingPosition.rank][attackingPosition.file];
 
 		// Also, moving piece cannot be pinned.
-		// ?? Use is pinned to king.
 		if (isPinnedToKing(sourcePosition, nextMover)) {
-			// Can be pinned.
+			// Knight can't move even when under pin.
 			if (movingPieceType == PieceType::Knight) return false;
 
+			// Everything else can move in the same or opposite direction of the pin.
 			auto [direction, dist] = getDirectionAndDistance(kingPos, sourcePosition);
 			if (moveDir != direction && moveDir != oppositeDirection(direction)) {
 				return false;
 			}
 		}
-		// debug << "\tMoving piece is not pinned." << std::endl;
 
 		// Some other piece moved.
 		// Capture
-		// debug << "\tCheck is from " << (char)(attackingPosition.file + 'a') << (attackingPosition.rank + 1)
-		    //   << "." << std::endl;
 		if (attackingPosition.rank == move.destinationRank &&
 			attackingPosition.file == move.destinationFile) {
-			// debug << "\tMoving piece captures attacking piece." << std::endl;
 			return true;
 		} else if (
 			enPassantSquare.has_value() && destinationPosition == enPassantSquare.value() &&
 			attackingPosition.file == enPassantSquare.value().file &&
 			attackingPosition.rank == (nextMover == Color::White ? 4 : 3)
 			&& movingPieceType == PieceType::Pawn) {
-			// debug << "\tEnpassant capture." << std::endl;
 			return true;
 		}
 
 		// Blocks
 		// Can't block knight checks.
-		if (attackingPiece.pieceType != PieceType::Knight) {
-			if (inDirection(kingPos, destinationPosition) && inDirection(kingPos, attackingPosition)) {
-				auto [blockDir, blockDist] = getDirectionAndDistance(kingPos, destinationPosition);
-				auto [attackDir, attackDist] = getDirectionAndDistance(kingPos, attackingPosition);
-				if (blockDir == attackDir && blockDist <= attackDist) {
-					// debug << "\tMoving piece blocks check." << std::endl;
-					return true;
-				}
+		if (attackingPiece.pieceType != PieceType::Knight && inDirection(kingPos, destinationPosition)) {
+			auto [blockDir, blockDist] = getDirectionAndDistance(kingPos, destinationPosition);
+			auto [attackDir, attackDist] = getDirectionAndDistance(kingPos, attackingPosition);
+			if (blockDir == attackDir && blockDist <= attackDist) {
+				// debug << "\tMoving piece blocks check." << std::endl;
+				return true;
 			}
 		}
-
-		// debug << "\tNot a valid response." << std::endl;
 
 		return false;
 	}
@@ -840,7 +697,7 @@ namespace space {
 				}
 			}
 		}
-		return { -1000000, -1000000 };
+		space_fail("Not under attack.");
 	}
 
 	void CBoard::addPieceAt(Piece piece, Position position) {
@@ -1246,7 +1103,7 @@ namespace space {
 		return true;
 	}
 
-	std::string CBoard::getValidMoveString() const {
+	std::vector<Move> CBoard::getValidMoveList() const {
 		auto backRank = nextMover == Color::White ? 7 : 0;
 		std::vector<Move> result;
 		for (auto sr = 0; sr <= 7; sr++)
@@ -1266,6 +1123,11 @@ namespace space {
 				}
 			}
 		}
+		return result;
+	}
+
+	std::string CBoard::getValidMoveString() const {
+		auto result = getValidMoveList();
 
 		std::vector<std::string> resultStr;
 		for (auto m : result) {

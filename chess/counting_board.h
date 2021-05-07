@@ -64,13 +64,14 @@ namespace space {
 		// Moves and updates
 		std::optional<Ptr> updateBoard(Move move) const override;
 		MoveMap getValidMoves() const override {}
+		std::vector<Move> getValidMoveList() const;
 		std::string getValidMoveString() const;
 		bool isValidMove(Move move) const;
 		bool isValidCastle(Move move) const;
 		bool isValidResponseToCheck(Move move) const;
 
 		// Initialization
-		static Ptr fromFen(const Fen& fen);
+		static std::unique_ptr<CBoard> fromFen(const Fen& fen);
 		static std::unique_ptr<CBoard> fromFenInternal(const Fen& fen);
 		static std::unique_ptr<CBoard> startPosition();
 		std::string attackString() const;

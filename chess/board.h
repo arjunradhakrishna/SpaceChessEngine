@@ -47,6 +47,7 @@ namespace space {
 	class IBoard {
 	public:
 		using Ptr = std::shared_ptr<IBoard>;
+		using UPtr = std::unique_ptr<IBoard>;
 		using MoveMap = std::map<Move, Ptr>;
 		virtual Color whoPlaysNext() const = 0;
 		virtual std::optional<Piece> getPiece(Position position) const = 0;

@@ -47,12 +47,13 @@ namespace test_utils {
 	}
 
 	void validate_game_moves(space::Game& game, bool is_stalemate) {
-		auto board = space::CBoard::fromFen(game.starting_position);
+		std::shared_ptr<space::IBoard> board = std::move(space::CBoard::fromFen(game.starting_position));
 		// space::debug << board->as_string(true, true) << std::endl;
 		// space::debug << static_cast<space::CBoard*>(board.get())->attackString() << std::endl;
 
 		for (auto ply : game.plies) {
-			std::cout << board->getValidMoveString() << std::endl;
+			// std::cout << board->getValidMoveString() << std::endl;
+			((space::CBoard*)board.get())->getValidMoveList();
 
 			// space::debug << ply.move_number
 			//           << (ply.color == space::Color::White ? ". " : "... ")
@@ -80,7 +81,8 @@ namespace test_utils {
 			auto move_is_checkmate = ply.is_checkmate;
 			ASSERT_EQ(board_in_checkmate, ply.is_checkmate);
 		}
-		std::cout << board->getValidMoveString() << std::endl;
+		((space::CBoard*)board.get())->getValidMoveList();
+		// std::cout << board->getValidMoveString() << std::endl;
 
 		auto board_in_stalemate = board->isStaleMate();
 		ASSERT_EQ(board_in_stalemate, is_stalemate);
@@ -333,7 +335,7 @@ TEST(BoardSuite, PGNParseTest) {
 		"games/lichess_db_standard_rated_2013-01.pgn",
 		std::ios_base::in
 	);
-	// auto games = PGN::parse_many(f, 100);
+	// auto games = PGN::parse_many(f, 1000);
 	auto games = PGN::parse_all(f);
 	f.close();
 
