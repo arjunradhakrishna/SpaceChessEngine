@@ -453,7 +453,8 @@ namespace space {
 		auto capturedPiece = pieces[move.destinationRank][move.destinationFile];
 		if (movingPiece.color != nextMover || // Moving wrong color piece
 			movingPieceType == PieceType::None || // Moving no piece
-			(capturedPiece.pieceType != PieceType::None && capturedPiece.color == nextMover) // Capturing own piece.
+			(capturedPiece.pieceType != PieceType::None && capturedPiece.color == nextMover) || // Capturing own piece.
+			(movingPieceType != PieceType::Pawn && move.promotedPiece != PieceType::None) // Promoting non-pawn piece
 		) {
 			return false;
 		}
@@ -483,8 +484,13 @@ namespace space {
 				break;
 			case PieceType::Pawn:
 				auto startRank = nextMover == Color::White ? 1 : 6;
+				auto backRank = nextMover == Color::White ? 7 : 0;
 				// Move in wrong direction
 				if ((move.sourceRank < move.destinationRank) != (nextMover == Color::White)) return false;
+				// Back rank, but no promotion
+				if (move.destinationRank == backRank && move.promotedPiece == PieceType::None) return false;
+				// Not back rank, but promotion
+				if (move.destinationRank != backRank && move.promotedPiece != PieceType::None) return false;
 				// Move 1 square
 				if (fileDiff == 0 && rankDiff == 1 &&
 					pieces[move.destinationRank][move.destinationFile].pieceType == PieceType::None) break;
@@ -1108,18 +1114,69 @@ namespace space {
 		std::vector<Move> result;
 		for (auto sr = 0; sr <= 7; sr++)
 		for (auto sf = 0; sf <= 7; sf++) {
-			if (pieces[sr][sf].pieceType == PieceType::None || pieces[sr][sf].color != nextMover) continue;
-			for (auto dr = 0; dr <= 7; dr++)
-			for (auto df = 0; df <= 7; df++) {
-				if (pieces[sr][sf].pieceType == PieceType::Pawn && dr == backRank) {
-					for (auto pieceType : { PieceType::Queen, PieceType::Rook, PieceType::Knight, PieceType::Bishop}) {
-						auto m = Move(sr, sf, dr, df, pieceType);
+			auto pieceType = pieces[sr][sf].pieceType;
+			if (pieceType == PieceType::None || pieces[sr][sf].color != nextMover) continue;
+
+			if (isLongPiece(pieceType)) {
+				auto directions = getMoveDirections(pieceType);
+				for (auto dir : directions) {
+					auto offset = directionToOffset(dir);
+					for (int i = 1; i <= 7; i++) {
+						auto dr = sr + i * offset.first;
+						auto df = sf + i * offset.second;
+						if (dr < 0 || dr > 7 || df < 0 || df > 7) break;
+						auto m = Move(sr, sf, dr, df);
 						if (isValidMove(m)) result.push_back(m);
+						if (pieces[dr][df].pieceType != PieceType::None) break;
 					}
 				}
-				else {
+			}
+			else if (pieceType == PieceType::Knight) {
+				for (auto kDir : knightDirections) {
+					auto offset = knightDirectionToOffset(kDir);
+					auto dr = sr + offset.first;
+					auto df = sf + offset.second;
+					if (dr < 0 || dr > 7 || df < 0 || df > 7) continue;
 					auto m = Move(sr, sf, dr, df);
 					if (isValidMove(m)) result.push_back(m);
+				}
+			}
+			else if (pieceType == PieceType::King) {
+				for (auto dir : allDirections) {
+					auto offset = directionToOffset(dir);
+					auto dr = sr + offset.first;
+					auto df = sf + offset.second;
+					if (dr < 0 || dr > 7 || df < 0 || df > 7) continue;
+					auto m = Move(sr, sf, dr, df);
+					if (isValidMove(m)) result.push_back(m);
+				}
+				auto baseRank = nextMover == Color::White ? 0 : 7;
+				if (sr == baseRank && sf == 4) {
+					auto m = Move(sr, sf, sr, sf + 2);
+					if (isValidMove(m)) result.push_back(m);
+					m = Move(sr, sf, sr, sf - 2);
+					if (isValidMove(m)) result.push_back(m);
+				}
+			}
+			else if (pieceType == PieceType::Pawn) {
+				// 1 step, 2 step, capture, promotion.
+				auto dir = nextMover == Color::White ? 1 : -1;
+				auto backRank = nextMover == Color::White ? 7 : 0;
+				for (auto m : {
+					Move(sr, sf, sr + dir, sf),      // Std 1 step move 
+					Move(sr, sf, sr + 2 * dir, sf),  // 2 steps
+					Move(sr, sf, sr + dir, sf + 1),  // Capture left
+					Move(sr, sf, sr + dir, sf - 1),  // Capture right
+				}) {
+					if (m.destinationRank == backRank) {
+						for (auto pt : { PieceType::Queen, PieceType::Rook, PieceType::Bishop, PieceType::Knight }) {
+							m.promotedPiece = pt;
+							if (isValidMove(m)) result.push_back(m);
+						}
+					}
+					else {
+						if (isValidMove(m)) result.push_back(m);
+					}
 				}
 			}
 		}
